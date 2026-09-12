@@ -1,4 +1,4 @@
-<#
+﻿<#
   kernel-deps-copy.ps1 —— 把「外壳复用内核」所需的程序集从 data/player 复制到指定输出目录。
   用法：
     powershell -NoProfile -ExecutionPolicy Bypass -File kernel-deps-copy.ps1 -TargetDir "<输出目录>"
