@@ -2,15 +2,13 @@ name: build
 
 # AIPlayer / FPlayer 自动构建
 #
-# 说明（重要）：
-#   1) `kernel` 作业是**完全可从源码构建**的（依赖全部是 NuGet 包），因此它必须在 CI 里通过。
-#   2) `shell` 作业还需要一份**第三方内核运行时包** `data/player/`（原版内核的
-#      Richasy.*/Danmaku.* 程序集、`Controls|Pages/*.xbf`、字体、以及 117 MB 的
-#      `libmpv-2.dll`）。这份包**不在仓库里**（体积与第三方版权原因）。
-#      ⇒ 仓库的 Release 里挂一个 `data-player.zip` 资源，作业会自动下载并解开；
-#        没挂时该作业会说明原因并跳过，不会伪装成"构建成功"。
-#   3) 因此：绿色 = 内核从源码构建通过；`shell` 作业的结论只在提供了 `data-player.zip`
-#      之后才代表真实产物。
+# 关键前提（已在 CI 上实证）：
+#   本仓库只有**源码**。内核 `AIPlayer.MpvHost.csproj` 除 42 个 NuGet 包外，还以
+#   `<Reference>` 引用了若干**本地程序集**（`Richasy.*` / `Danmaku.*` 等），它们来自
+#   第三方内核运行时包 `data/player/`（419 个文件 / 337.8 MB，含 117 MB 的 `libmpv-2.dll`）。
+#   该包因体积与第三方版权**不入仓库**，改为挂在 **Release 资产** `data-player.zip` 上。
+#
+#   ⇒ 若取不到该资产，本 workflow 会**立即失败并给出一条明确指引**（不再刷一屏 CS0246）。
 
 on:
   push:
@@ -24,14 +22,46 @@ env:
   DOTNET_NOLOGO: true
   DOTNET_CLI_TELEMETRY_OPTOUT: true
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  BUNDLE_NAME: data-player.zip
   KERNEL_OUT: kernel/build/Release/net9.0-windows10.0.22621.0/win-x64
 
 jobs:
-  kernel:
-    name: kernel (from source)
+  build:
+    name: build (kernel + shell + package)
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Fetch the data/player bundle (required)
+        id: bundle
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $url = '${{ vars.DATA_PLAYER_ASSET_URL }}'
+          if ([string]::IsNullOrWhiteSpace($url)) {
+            try {
+              $rel = Invoke-RestMethod -Uri "https://api.github.com/repos/${{ github.repository }}/releases" `
+                -Headers @{ Authorization = "token $env:GH_TOKEN"; 'User-Agent' = 'actions'; Accept = 'application/vnd.github+json' }
+              foreach ($r in $rel) {
+                $a = $r.assets | Where-Object { $_.name -eq $env:BUNDLE_NAME } | Select-Object -First 1
+                if ($a) { $url = $a.browser_download_url; break }
+              }
+            } catch { Write-Host "release lookup failed: $($_.Exception.Message)" }
+          }
+          if ([string]::IsNullOrWhiteSpace($url)) {
+            Write-Host "::error title=缺少 data/player 运行时包::本仓库只含源码；内核与外壳都依赖第三方内核运行时包 data/player（Richasy.*/Danmaku.* 程序集、Controls|Pages/*.xbf、libmpv-2.dll）。请把一个名为 $env:BUNDLE_NAME 的 Release 资产挂到本仓库（或设置仓库变量 DATA_PLAYER_ASSET_URL 指向它），然后重跑本 workflow。"
+            exit 1
+          }
+          New-Item -ItemType Directory -Path data/player -Force | Out-Null
+          $zip = Join-Path $env:RUNNER_TEMP $env:BUNDLE_NAME
+          Write-Host "downloading $url"
+          Invoke-WebRequest -Uri $url -OutFile $zip
+          Expand-Archive -Path $zip -DestinationPath data/player -Force
+          $n = (Get-ChildItem data/player -Recurse -File | Measure-Object).Count
+          Write-Host "data/player files = $n"
+          if ($n -lt 100) { Write-Host "::error::data/player 解压后文件数异常（$n）"; exit 1 }
+          "files=$n" >> $env:GITHUB_OUTPUT
 
       - uses: actions/setup-dotnet@v4
         with:
@@ -43,109 +73,38 @@ jobs:
       - name: Build kernel (Release, win-x64)
         run: dotnet build kernel/src/AIPlayer.MpvHost.csproj -c Release -r win-x64 --nologo
 
-      - name: Collect kernel output
+      - name: Overlay freshly built kernel dll onto data/player
         shell: pwsh
         run: |
-          if (-not (Test-Path $env:KERNEL_OUT)) { throw "kernel output not found: $env:KERNEL_OUT" }
-          New-Item -ItemType Directory -Path out/kernel -Force | Out-Null
-          Copy-Item "$env:KERNEL_OUT/*" out/kernel -Recurse -Force
-          $n = (Get-ChildItem out/kernel -Recurse -File | Measure-Object).Count
-          "kernel output files = $n"
-          $dll = 'out/kernel/AIPlayer.MpvHost.dll'
-          if (-not (Test-Path $dll)) { throw "AIPlayer.MpvHost.dll missing" }
-          "sha256_12 = " + (Get-FileHash $dll -Algorithm SHA256).Hash.Substring(0,12)
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: kernel-win-x64
-          path: out/kernel
-          if-no-files-found: error
-
-  shell:
-    name: shell (needs data/player bundle)
-    needs: kernel
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '9.0.x'
-
-      - name: Try to fetch the data/player bundle from this repo's releases
-        id: bundle
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          $url = '${{ vars.DATA_PLAYER_ASSET_URL }}'
-          if ([string]::IsNullOrWhiteSpace($url)) {
-            # 未配置时，退一步：在当前仓库的 releases 里找名为 data-player.zip 的资源
-            try {
-              $rel = Invoke-RestMethod -Uri "https://api.github.com/repos/${{ github.repository }}/releases" `
-                -Headers @{ Authorization = "token $env:GH_TOKEN"; 'User-Agent' = 'actions' }
-              foreach ($r in $rel) {
-                $a = $r.assets | Where-Object { $_.name -eq 'data-player.zip' } | Select-Object -First 1
-                if ($a) { $url = $a.browser_download_url; break }
-              }
-            } catch { Write-Host "release lookup failed: $($_.Exception.Message)" }
-          }
-          if ([string]::IsNullOrWhiteSpace($url)) {
-            "found=false" >> $env:GITHUB_OUTPUT
-            Write-Host "::notice::data-player.zip 未提供 —— 跳过 shell 构建（详情见本 workflow 顶部说明）"
-          } else {
-            New-Item -ItemType Directory -Path data/player -Force | Out-Null
-            Invoke-WebRequest -Uri $url -OutFile "$env:RUNNER_TEMP/data-player.zip"
-            Expand-Archive -Path "$env:RUNNER_TEMP/data-player.zip" -DestinationPath data/player -Force
-            "found=true" >> $env:GITHUB_OUTPUT
-            "data/player files = " + (Get-ChildItem data/player -Recurse -File | Measure-Object).Count
-          }
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: kernel-win-x64
-          path: out/kernel
-
-      - name: Overlay the freshly built kernel onto data/player
-        if: steps.bundle.outputs.found == 'true'
-        shell: pwsh
-        run: |
-          Copy-Item out/kernel/AIPlayer.MpvHost.dll data/player/AIPlayer.MpvHost.dll -Force
-          "kernel fork replaced in data/player"
+          if (-not (Test-Path "$env:KERNEL_OUT/AIPlayer.MpvHost.dll")) { throw "kernel dll not found: $env:KERNEL_OUT" }
+          Copy-Item "$env:KERNEL_OUT/AIPlayer.MpvHost.dll" data/player/AIPlayer.MpvHost.dll -Force
+          $p = 'data/player/AIPlayer.MpvHost.dll'
+          "kernel fork = {0} / {1}" -f (Get-Item $p).Length, (Get-FileHash $p -Algorithm SHA256).Hash.Substring(0,12)
 
       - name: Build shell (Debug) — compile gate
-        if: steps.bundle.outputs.found == 'true'
         run: dotnet build shell/App/AIPlayer.Shell.csproj -c Debug --nologo
 
       - name: Publish shell (Release, self-contained win-x64)
-        if: steps.bundle.outputs.found == 'true'
         run: dotnet publish shell/App/AIPlayer.Shell.csproj -c Release -r win-x64 --self-contained true --nologo -o out/shell
 
-      - name: Package (tree + data/player)
-        if: steps.bundle.outputs.found == 'true'
+      - name: Assemble player\ and package
         shell: pwsh
         run: |
           & robocopy data/player out/shell/player /E /NFL /NDL /NJH /NJS /NP | Out-Null
           if ($LASTEXITCODE -ge 8) { throw "robocopy failed: $LASTEXITCODE" }
+          Copy-Item "$env:KERNEL_OUT/AIPlayer.MpvHost.dll" out/shell/player/AIPlayer.MpvHost.dll -Force
           Copy-Item README.md out/shell/README.md -Force
+          "shell exe   = {0} / {1}" -f (Get-Item out/shell/AIPlayer.Shell.exe).Length, (Get-FileHash out/shell/AIPlayer.Shell.exe -Algorithm SHA256).Hash.Substring(0,12)
+          "shell dll   = {0} / {1}" -f (Get-Item out/shell/AIPlayer.Shell.dll).Length, (Get-FileHash out/shell/AIPlayer.Shell.dll -Algorithm SHA256).Hash.Substring(0,12)
+          "services    = {0} / {1}" -f (Get-Item out/shell/AIPlayer.Shell.Services.dll).Length, (Get-FileHash out/shell/AIPlayer.Shell.Services.dll -Algorithm SHA256).Hash.Substring(0,12)
+          "player files= " + (Get-ChildItem out/shell/player -Recurse -File | Measure-Object).Count
           Compress-Archive -Path out/shell/* -DestinationPath out/FPlayer-win-x64.zip -Force
           $f = Get-Item out/FPlayer-win-x64.zip
           "zip = {0:N1} MB / sha256_12 = {1}" -f ($f.Length/1MB), (Get-FileHash $f.FullName -Algorithm SHA256).Hash.Substring(0,12)
 
       - uses: actions/upload-artifact@v4
-        if: steps.bundle.outputs.found == 'true'
         with:
           name: FPlayer-win-x64
           path: out/FPlayer-win-x64.zip
           if-no-files-found: error
-
-      - name: Summary
-        if: always()
-        shell: pwsh
-        run: |
-          if ('${{ steps.bundle.outputs.found }}' -eq 'true') {
-            "**shell**: published with the data/player bundle." >> $env:GITHUB_STEP_SUMMARY
-          } else {
-            "**shell**: skipped — 未提供 ``data-player.zip``（第三方内核运行时包不在仓库内）。" >> $env:GITHUB_STEP_SUMMARY
-            "kernel 作业的产物仍可用。" >> $env:GITHUB_STEP_SUMMARY
-          }
+          retention-days: 14
