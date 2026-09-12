@@ -1,4 +1,4 @@
-﻿<#
+<#
   kernel-deps-copy.ps1 —— 把「外壳复用内核」所需的程序集从 data/player 复制到指定输出目录。
   用法：
     powershell -NoProfile -ExecutionPolicy Bypass -File kernel-deps-copy.ps1 -TargetDir "<输出目录>"
@@ -7,7 +7,9 @@
   退出码：0=就位  2=清单内任一侧缺失（源缺失=clean 清单/发布目录不完整；目标缺失=尚未复制或已被构建冲掉）  3=复制失败（多为并发构建锁文件，稍后重跑）
 #>
 param(
-    [string]$SourceDir = 'E:\AI Player\data\player',
+    # 默认源目录按**脚本位置**解析（脚本在 shell/App/ 下，data/player 在仓库根）。
+    # 写死绝对路径会让任何非默认 checkout（worktree / CI / 他人机器）直接 MSB3073。
+    [string]$SourceDir = (Join-Path $PSScriptRoot '..\..\data\player'),
     [Parameter(Mandatory = $true)][string]$TargetDir,
     [switch]$Verify,
     [switch]$IncludeWinAppSdk,
