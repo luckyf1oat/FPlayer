@@ -7,9 +7,10 @@
   退出码：0=就位  2=清单内任一侧缺失（源缺失=clean 清单/发布目录不完整；目标缺失=尚未复制或已被构建冲掉）  3=复制失败（多为并发构建锁文件，稍后重跑）
 #>
 param(
-    # 默认源目录按**脚本位置**解析（脚本在 shell/App/ 下，data/player 在仓库根）。
-    # 写死绝对路径会让任何非默认 checkout（worktree / CI / 他人机器）直接 MSB3073。
-    [string]$SourceDir = (Join-Path $PSScriptRoot '..\..\data\player'),
+    # 源目录：**相对路径**（MSBuild 的 Exec 以项目目录为 CWD ⇒ ..\..\data\player = 仓库根/data/player）。
+    # 写死绝对路径会让任何非默认 checkout（worktree / CI / 他人机器）直接 MSB3073；
+    # 而 `$PSScriptRoot` 在 param 默认值里为空（Windows PowerShell 5.1）⇒ 不能在默认值里 Join-Path。
+    [string]$SourceDir = '..\..\data\player',
     [Parameter(Mandatory = $true)][string]$TargetDir,
     [switch]$Verify,
     [switch]$IncludeWinAppSdk,
