@@ -91,7 +91,10 @@ jobs:
         shell: pwsh
         run: |
           & robocopy data/player out/shell/player /E /NFL /NDL /NJH /NJS /NP | Out-Null
+          # robocopy 的成功码是 0..7（1 = 有文件被复制）⇒ 不能把它当失败；但也必须**清掉**它，
+          # 否则 GitHub 的 pwsh 包装层会拿这个 $LASTEXITCODE 当整个 step 的退出码 ⇒ 明明成功却报红。
           if ($LASTEXITCODE -ge 8) { throw "robocopy failed: $LASTEXITCODE" }
+          $global:LASTEXITCODE = 0
           Copy-Item "$env:KERNEL_OUT/AIPlayer.MpvHost.dll" out/shell/player/AIPlayer.MpvHost.dll -Force
           Copy-Item README.md out/shell/README.md -Force
           "shell exe   = {0} / {1}" -f (Get-Item out/shell/AIPlayer.Shell.exe).Length, (Get-FileHash out/shell/AIPlayer.Shell.exe -Algorithm SHA256).Hash.Substring(0,12)
@@ -101,6 +104,7 @@ jobs:
           Compress-Archive -Path out/shell/* -DestinationPath out/FPlayer-win-x64.zip -Force
           $f = Get-Item out/FPlayer-win-x64.zip
           "zip = {0:N1} MB / sha256_12 = {1}" -f ($f.Length/1MB), (Get-FileHash $f.FullName -Algorithm SHA256).Hash.Substring(0,12)
+          exit 0
 
       - uses: actions/upload-artifact@v4
         with:
