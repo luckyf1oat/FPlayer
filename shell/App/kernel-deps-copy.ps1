@@ -22,6 +22,15 @@ $ErrorActionPreference = 'Stop'
 #    导致引号不配对、参数解析崩掉（症状：脚本在第 23 行附近报语法/参数错，MSB3073 exit 1）。
 $TargetDir = $TargetDir.TrimEnd('\', '/')
 
+# 源目录解析：param 默认值里 $PSScriptRoot 为空（Windows PowerShell 5.1），故在此解析。
+# 先按脚本相对位置（仓库根/data/player），再回落到历史绝对路径。
+if ([string]::IsNullOrWhiteSpace($SourceDir)) {
+    foreach ($cand in @((Join-Path $PSScriptRoot '..\..\data\player'), 'E:\AI Player\data\player')) {
+        if (Test-Path (Join-Path $cand 'AIPlayer.MpvHost.deps.json')) { $SourceDir = $cand; break }
+    }
+    if ([string]::IsNullOrWhiteSpace($SourceDir)) { $SourceDir = (Join-Path $PSScriptRoot '..\..\data\player') }
+}
+
 # 内核运行时动态加载、但不登记在 deps.json 的项（必须显式搬运，glob 猜不到）
 # [t136] `libmpv-2.dll` **已从本清单移除** —— 外壳对 libmpv 的解析是**三段链**
 #     `SHELL_KERNEL_LIBMPV` > `<BaseDir>\player\libmpv-2.dll` > legacy 绝对路径
