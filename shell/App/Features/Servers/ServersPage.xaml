@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="AIPlayer.Shell.Features.Servers.ServersPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Grid Padding="24" RowSpacing="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Spacing="4">
+            <TextBlock Text="服务器管理" FontSize="24" FontWeight="SemiBold" />
+            <TextBlock x:Name="SummaryText" FontSize="12" Opacity="0.7" Text="正在加载…" />
+        </StackPanel>
+
+        <!-- 密集列表（captain 规格）：整页**一张通卡** + 行间 1px 分隔线 + 行**不加独立边框** —— 与设置页 §9.1 同一套容器纪律 -->
+        <!-- t64：Card 加 `VerticalAlignment="Top"` —— 行仍是 `*`（不溢出窗口、长列表照旧内部滚动），
+             但卡片贴合内容高度 ⇒ 用户报的"卡片底部大片空余"消失（内容超出时自动撑满并滚动）。 -->
+        <Border Grid.Row="1"
+                VerticalAlignment="Top"
+                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                BorderThickness="1"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                CornerRadius="4">
+            <ListView x:Name="ServerList"
+                      SelectionMode="Single"
+                      SelectionChanged="OnSelectionChanged"
+                      ContextRequested="OnServerListContextRequested"
+                      Background="Transparent"
+                      BorderThickness="0">
+                <ListView.ItemTemplate>
+                    <DataTemplate>
+                        <Grid MinHeight="56" Padding="8,0" ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <!-- 图标列固定宽 ⇒ 名称左边缘必须齐（与设置页 §9.1 同判据） -->
+                                <ColumnDefinition Width="28" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <!-- 最右列**预留**给"状态/操作"并右对齐（本轮不放未接线的交互控件，避免引入静默行为） -->
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <!-- 头像：与侧栏**同一份资产**（一个图标一个来源）；加载失败为 null ⇒ 空白，不退化成色块。
+                                 ⚠️ 不在模板里写 `{StaticResource …}`：模板实例化时若该键未就绪，XAML 资源查找会抛
+                                 stowed 异常（实测 0xC000027B）⇒ 改由控件自身 Loaded 里赋 Source（解析期不查资源）。 -->
+                            <Image Grid.Column="0" Width="28" Height="28" VerticalAlignment="Center"
+                                   Loaded="OnRowIconLoaded" />
+
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                                <TextBlock FontSize="12" Opacity="0.75" TextTrimming="CharacterEllipsis"
+                                           Text="{Binding BaseUrl}" />
+                            </StackPanel>
+
+                            <!-- 类型**紧跟左组**（不再贴右缘）⇒ "中间裂开"的空余消失 -->
+                            <TextBlock Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Left"                                       Margin="12,0,0,0" Opacity="0.6" Text="{Binding Kind}" />
+
+                            <!-- t64：把 `:41` 注释里"预留"的**最右列**填成**真实状态读数**（右对齐）。
+                                 [!] 不用 `{StaticResource}` / converter：`DataTemplate` 里查资源正是崩溃代际的形态
+                                 （探针 B 结论：该形态在场即崩 ⇒ 0xC000027B）⇒ 走与 `:47-48` 同一套 code-behind `Loaded` 赋值；
+                                 取不到值 ⇒ 写 `—`，**绝不留空**。 -->
+                            <TextBlock Grid.Column="3" HorizontalAlignment="Right" VerticalAlignment="Center"
+                                       FontSize="12" Opacity="0.6" Loaded="OnRowStatusLoaded" />
+
+                            <!-- 行间 1px 分隔线（行不加独立边框）；改用主题分隔笔刷（WinUI 自带、必可解析），
+                                 不再走 `{StaticResource ControlBorderBrush}`（该键不在本页/本主题作用域时会抛资源查找异常） -->
+                            <Border Grid.Column="0" Grid.ColumnSpan="4" Height="1" VerticalAlignment="Bottom"
+                                    Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+                        </Grid>
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+            </ListView>
+        </Border>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="8">
+            <Button x:Name="ReloadButton" Content="重新加载" Click="OnReloadClick" />
+            <Button x:Name="AddButton" Content="添加" Click="OnAddClick" />
+            <Button x:Name="ToggleButton" Content="启用/停用" Click="OnToggleClick" IsEnabled="False" />
+            <Button x:Name="DeleteButton" Content="删除" Click="OnDeleteClick" IsEnabled="False" />
+            <Button x:Name="TestButton" Content="测试连接" Click="OnTestClick" IsEnabled="False" />
+            <Button x:Name="SelfCheckButton" Content="服务自检" Click="OnSelfCheckClick" />
+        </StackPanel>
+
+        <TextBlock Grid.Row="3" x:Name="StatusText" FontSize="12" Opacity="0.75" TextWrapping="Wrap" />
+    </Grid>
+</Page>

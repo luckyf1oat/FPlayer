@@ -1,0 +1,153 @@
+<!--
+  AIPlayer.MpvHost —— 由反编译源码重建的「可编译」工程。
+  与 ILSpy 默认输出（另存为 AIPlayer.MpvHost.ilspy.csproj.bak）的区别：
+    1. 依赖改为 PackageReference（版本全部来自 data/player/AIPlayer.MpvHost.deps.json，55 项中的 42 项）
+    2. TargetFramework 修正为 net9.0-windows10.0.22621.0
+       （ILSpy 输出 net9.0 会导致 CsWinRT 的 IAsyncOperation.GetAwaiter 不可见 -> CS4036）
+    3. 移除 WinRT.Runtime / Microsoft.Windows.SDK.NET 的手工 <Reference>
+       （TFM 已隐式提供，重复引用会与 WinRTAotSourceGenerator 冲突 -> CS0111）
+    4. 反编译产物已自带 XAML 生成代码（*Base、InitializeComponent、Connect、XamlTypeInfoProvider），
+       因此无需 .xaml 源文件即可编译 -> EnableDefaultXamlItems=false
+  说明：Danmaku.Legacy / Danmaku.Share 为本地程序集（非 NuGet），仍用 <Reference>。
+-->
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <AssemblyName>AIPlayer.MpvHost</AssemblyName>
+    <RootNamespace>WinUISample</RootNamespace>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows10.0.22621.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
+    <Platforms>x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>false</SelfContained>
+    <UseWinUI>true</UseWinUI>
+    <WindowsPackageType>None</WindowsPackageType>
+    <EnableMsixTooling>false</EnableMsixTooling>
+    <EnableDefaultXamlItems>false</EnableDefaultXamlItems>
+    <!-- 反编译产物已含 Microsoft.Windows.ApplicationModel.WindowsAppRuntime.Common.AutoInitialize，
+         关闭 SDK 自动注入的初始化器以避免 CS0101/CS0111 -->
+    <WindowsAppSdkAutoInitialize>false</WindowsAppSdkAutoInitialize>
+    <!-- t38/E-P1：内核分支的输出统一落 kernel/build/（build/ 已 gitignore；中间产物仍在 src\obj，同样 gitignore） -->
+    <BaseOutputPath>$(MSBuildThisFileDirectory)..\build\</BaseOutputPath>
+    <!-- K9：fork 身份指纹。原版/rebuild 的 ProductVersion 完全相同（1.0.0+7e541a41c35b…），
+         这里给分支一个**可观测**的版本串；启动日志同时打印 KERNEL-FORK rev=1。 -->
+    <InformationalVersion>1.0.0-fork-rev1</InformationalVersion>
+    <!-- 不加这一条，SDK 会把 SourceRevisionId 追加成 1.0.0-fork-rev1+<sha>，与原版串的区分度变差 -->
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <Nullable>disable</Nullable>
+    <!--
+      Win32 资源（完整性还原的关键，见 README §2.5）：
+      ILSpy 已从原程序集的 .rsrc 节导出这两个文件，但默认不会嵌入回产物：
+        app.ico      101,470 B  == 原版 ICON×6 (101,368 B) + ICO 头 102 B
+        app.manifest 126,479 B  == 原版 MANIFEST 资源字节数（UndockedRegFreeWinRT 激活清单）
+      显式声明后，重建 DLL 的 .rsrc 节可恢复到与原版一致的 229,364 B
+      （ICON×6 + GROUP_ICON + VERSION + MANIFEST）。
+    -->
+    <ApplicationIcon>app.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <LangVersion>14.0</LangVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <CheckForOverflowUnderflow>false</CheckForOverflowUnderflow>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <NoWarn>CS0618;CS4014;CS0649;CS0169;CS0414;CS8632;CS8981;CA1416</NoWarn>
+    <!--
+      代码分析（CODE_STANDARD §6 G6）—— "先量后治 + 棘轮"。
+      反编译源码自带一批**风格类**分析警告（不必要的强制转换 / 用 is null 代替 == null / 未使用的私有成员…）：
+      它们不是缺陷，但必须有账可查，否则"新增的"会被淹没在存量里。
+      打开本属性后构建仍是 **0 错误**，但会有 **101 条基线警告**（2026-09-12 实测；规则分布见 CHANGES.md 的 K7 附带节）。
+      门禁口径 = **不得新增**：基线内的不追（本轮不处置），新增的必须为 0；基线只降不升。
+      ⚠️ 读数纪律：kernel 上的"0 警告"从此刻起要读成"**0 错误 + ≤101 基线警告**"，引用构建读数时必须写清基线数。
+    -->
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Common" Version="8.2.1" />
+    <PackageReference Include="CommunityToolkit.HighPerformance" Version="8.4.0" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <PackageReference Include="CommunityToolkit.WinUI.Animations" Version="8.2.250402" />
+    <PackageReference Include="CommunityToolkit.WinUI.Controls.Sizers" Version="8.2.250402" />
+    <PackageReference Include="CommunityToolkit.WinUI.Extensions" Version="8.2.250402" />
+    <PackageReference Include="CommunityToolkit.WinUI.Helpers" Version="8.2.250402" />
+    <PackageReference Include="CommunityToolkit.WinUI.Media" Version="8.2.250402" />
+    <PackageReference Include="CommunityToolkit.WinUI.Triggers" Version="8.2.250402" />
+    <PackageReference Include="FluentIcons.Common" Version="1.1.292" />
+    <PackageReference Include="FluentIcons.WinUI" Version="1.1.292" />
+    <PackageReference Include="FluentResults" Version="3.16.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.0-rc.1.25451.107" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.Abstractions" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.FileProviders.Abstractions" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0-rc.1.25451.107" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Primitives" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Graphics.Win2D" Version="1.3.2" />
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3179.45" />
+    <PackageReference Include="Microsoft.Win32.SystemEvents" Version="9.0.2" />
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.250916003" />
+    <PackageReference Include="Microsoft.WindowsAppSDK.AI" Version="1.8.38" />
+    <PackageReference Include="Microsoft.WindowsAppSDK.ML" Version="1.8.2091" />
+    <PackageReference Include="Serilog" Version="4.2.1-dev-02352" />
+    <PackageReference Include="Serilog.Extensions.Logging" Version="9.0.1" />
+    <PackageReference Include="Serilog.Sinks.File" Version="7.0.0-dev-02301" />
+    <PackageReference Include="System.Diagnostics.DiagnosticSource" Version="10.0.0-rc.1.25451.107" />
+    <PackageReference Include="System.Drawing.Common" Version="9.0.2" />
+    <PackageReference Include="Win32.NativeWindow" Version="1.1.0" />
+    <PackageReference Include="WinUIEx" Version="2.5.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 本地程序集（非 NuGet 分发，来自发布目录） -->
+    <Reference Include="Danmaku.Legacy">
+      <HintPath>..\..\data\player\Danmaku.Legacy.dll</HintPath>
+    </Reference>
+    <Reference Include="Danmaku.Share">
+      <HintPath>..\..\data\player\Danmaku.Share.dll</HintPath>
+    </Reference>
+    <!--
+      Richasy 系列必须使用发布目录中的二进制而非 NuGet 上的同名包：
+      nuget.org 的 Richasy.MpvKernel.WinUI 0.0.1-preview7 缺少
+      Richasy.MpvKernel.WinUI.Converters / .Helpers 命名空间（CS0234）。
+    -->
+    <Reference Include="Richasy.MpvKernel">
+      <HintPath>..\..\data\player\Richasy.MpvKernel.dll</HintPath>
+    </Reference>
+    <Reference Include="Richasy.MpvKernel.Core">
+      <HintPath>..\..\data\player\Richasy.MpvKernel.Core.dll</HintPath>
+    </Reference>
+    <Reference Include="Richasy.MpvKernel.WinUI">
+      <HintPath>..\..\data\player\Richasy.MpvKernel.WinUI.dll</HintPath>
+    </Reference>
+    <Reference Include="Richasy.WinUIKernel.Share">
+      <HintPath>..\..\data\player\Richasy.WinUIKernel.Share.dll</HintPath>
+    </Reference>
+    <Reference Include="RichasyKernel.Core">
+      <HintPath>..\..\data\player\RichasyKernel.Core.dll</HintPath>
+    </Reference>
+    <Reference Include="RichasyKernel.Abstractions">
+      <HintPath>..\..\data\player\RichasyKernel.Abstractions.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <!--
+    反编译产物中已经包含源生成器的输出（如 [RelayCommand] 生成的 *Command 属性、
+    [ObservableProperty] 生成的属性、CsWinRT 的 ABI 投影类型），
+    若再运行同名源生成器会产生重复定义：CS0111 / CS0102 / CS0101。
+    此处移除所有源生成器，只保留反编译源码本身。
+  -->
+  <Target Name="RemoveSourceGenerators" BeforeTargets="CoreCompile">
+    <ItemGroup>
+      <!-- 全部移除：CsWinRT 的 WinRT.SourceGenerator 会重新生成 ABI 投影类型，
+           与反编译产物中已有的同名类型冲突（139 个 CS0111）；
+           其缺失的 IAsyncOperation.GetAwaiter 由 ReverseCompatShim.cs 补回。 -->
+      <Analyzer Remove="@(Analyzer)"
+                Condition="$([System.String]::Copy('%(Analyzer.Filename)').Contains('SourceGenerator'))" />
+    </ItemGroup>
+  </Target>
+
+</Project>

@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ===== 外壳新 UI 令牌表（t26 / U-A）=====
+  唯一权威 = shell/docs/UI_SPEC_SHELL.md §1（值全部 [实测]，逐点采样自参照物客户区 1403×794）。
+  ⚠️ **本文件由 t26(ui) 独占维护**；`ui2` 只消费、不修改（任务卡协作条款）。
+     需要新令牌请在任务板留一句，由 t26 追加 —— 避免两个作者各写一套值。
+  命名：色用 <Name>Color + <Name>Brush（画刷引用色，便于像素自检时两者同源）。
+-->
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- ===== §1 颜色令牌（8 个采样点，值逐字来自规格表）===== -->
+    <Color x:Key="RailBgColor">#FF202020</Color>
+    <Color x:Key="PageBgColor">#FF222222</Color>
+    <Color x:Key="SurfaceBgColor">#FF282828</Color>
+    <Color x:Key="ControlBgColor">#FF2F2F2F</Color>
+    <Color x:Key="ControlBorderColor">#FF3E3E3E</Color>
+    <Color x:Key="ChipBorderColor">#FF434343</Color>
+    <Color x:Key="RowSelectedBgColor">#FF2D2D2D</Color>
+    <Color x:Key="AccentColor">#FF9D82C2</Color>
+    <Color x:Key="TextPrimaryColor">#FFFFFFFF</Color>
+    <Color x:Key="TextSecondaryColor">#FF9E9E9E</Color>
+    <!-- captain 2026-09-11 裁定：只读服务器（原版 accounts.json 来源）的拖拽手柄要置灰
+         ⇒ 需要"禁用态文字"令牌；值取 WinUI 暗色 TextFillColorDisabled 的等价档，比次要色 #9E9E9E 明显更暗。 -->
+    <Color x:Key="TextDisabledColor">#FF6A6A6A</Color>
+    <Color x:Key="ServerOkColor">#FF50B649</Color>
+    <Color x:Key="ServerFailColor">#FFFFADB6</Color>
+    <Color x:Key="MenuBgColor">#FF1F1F1F</Color>
+    <Color x:Key="MenuHoverColor">#FF2C2C2C</Color>
+    <!-- t26 令牌补口（ui3 请求，2026-09-11）：HILLSLITE §4.5「无封面用 #333333 占位卡」。
+         ui3 先在 Features/Search 用字面值并标了出处，这里补齐键后由其自行切换。 -->
+    <Color x:Key="PlaceholderBgColor">#FF333333</Color>
+
+    <SolidColorBrush x:Key="RailBgBrush" Color="{StaticResource RailBgColor}" />
+    <SolidColorBrush x:Key="PageBgBrush" Color="{StaticResource PageBgColor}" />
+    <SolidColorBrush x:Key="SurfaceBgBrush" Color="{StaticResource SurfaceBgColor}" />
+    <SolidColorBrush x:Key="ControlBgBrush" Color="{StaticResource ControlBgColor}" />
+    <SolidColorBrush x:Key="ControlBorderBrush" Color="{StaticResource ControlBorderColor}" />
+    <SolidColorBrush x:Key="ChipBorderBrush" Color="{StaticResource ChipBorderColor}" />
+    <SolidColorBrush x:Key="RowSelectedBgBrush" Color="{StaticResource RowSelectedBgColor}" />
+    <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource AccentColor}" />
+    <SolidColorBrush x:Key="TextPrimaryBrush" Color="{StaticResource TextPrimaryColor}" />
+    <SolidColorBrush x:Key="TextSecondaryBrush" Color="{StaticResource TextSecondaryColor}" />
+    <SolidColorBrush x:Key="TextDisabledBrush" Color="{StaticResource TextDisabledColor}" />
+    <SolidColorBrush x:Key="ServerOkBrush" Color="{StaticResource ServerOkColor}" />
+    <SolidColorBrush x:Key="ServerFailBrush" Color="{StaticResource ServerFailColor}" />
+    <SolidColorBrush x:Key="PlaceholderBgBrush" Color="{StaticResource PlaceholderBgColor}" />
+
+    <!-- ===== §1/§2/§3 尺寸令牌 ===== -->
+    <x:Double x:Key="RailWidth">256</x:Double>          <!-- §1 实测：侧栏 0..255 ⇒ 256（旧值 ~190 已作废） -->
+    <x:Double x:Key="ServerRowHeight">52</x:Double>     <!-- §3 实测选中行 y 384..435 -->
+    <x:Double x:Key="AccentBarWidth">3</x:Double>       <!-- §3 紫左条 x=4..6 -->
+    <x:Double x:Key="ServerDiamondSize">28</x:Double>   <!-- §3 绿菱形 x=16..44 -->
+    <x:Double x:Key="SearchBoxWidth">320</x:Double>     <!-- §2/§7.2 顶栏常驻搜索框 -->
+    <x:Double x:Key="SearchBoxHeight">36</x:Double>
+    <CornerRadius x:Key="ControlCornerRadius">8</CornerRadius>   <!-- §1 控件/芯片 ≈8 -->
+    <CornerRadius x:Key="PosterCornerRadius">12</CornerRadius>   <!-- §1 海报 ≈12 -->
+
+    <!-- ===== §1.1 图标体系（captain 2026-09-12 新增纪律，用户当面提「一堆 emoji 好丑」）=====
+         🔴 禁止 emoji 当图标、禁止文本符号（▤ ⇄ ⌵ ⟲ ★ ☁）当图标：
+            emoji 是彩色字形、与单色 Fluent 冲突；渲染随系统字体版本变化 ⇒ 换机变样、破坏截图可比对性。
+         统一写法（务必带 FontFamily）：
+           <FontIcon FontFamily="{StaticResource IconFontFamily}" Glyph="&#xE774;"
+                     FontSize="{StaticResource IconFontSize}"
+                     Foreground="{StaticResource TextSecondaryBrush}" />
+         每个字形必须截图确认不是豆腐块 □，并把最终码位写在使用处文件头注释里。
+         允许保留的文字（是文案不是图标，有参照图依据）：♡ 收藏 / ▶ 继续播放 / ▤ 媒体库、徽标 ✓。 -->
+    <!-- 字体取 Segoe MDL2 Assets：本机（Win10 19045）无 Fluent Icons 字体，用它会整排渲染成豆腐块 □；
+         MDL2 是系统自带、单色、跨机稳定 —— 选它即可满足"图标不随系统字体版本变样"这条要求。
+         ⚠️ 若改用 FontIcon，必须沿用同一字体并截图确认字形；SymbolIcon（FluentIcons.WinUI）自带字体，不受此限。 -->
+    <x:String x:Key="IconFontFamily">Segoe MDL2 Assets</x:String>
+    <x:Double x:Key="IconFontSize">16</x:Double>      <!-- 行内图标 -->
+    <x:Double x:Key="IconSizeLarge">20</x:Double>     <!-- 标题旁图标 -->
+
+    <!-- ===== 侧栏服务器行的选中底（§1 RowSelectedBg = #2D2D2D）=====
+         直接覆盖 ListViewItem 的主题资源键 ⇒ "选中行底"就是令牌值本身（而非 WinUI 默认浅灰叠加），
+         这样像素自检采 (120, 选中行 y) 必须命中 #2D2D2D。 -->
+    <SolidColorBrush x:Key="ListViewItemBackground" Color="Transparent" />
+    <SolidColorBrush x:Key="ListViewItemBackgroundPointerOver" Color="{StaticResource RowSelectedBgColor}" />
+    <SolidColorBrush x:Key="ListViewItemBackgroundPressed" Color="{StaticResource RowSelectedBgColor}" />
+    <SolidColorBrush x:Key="ListViewItemBackgroundSelected" Color="{StaticResource RowSelectedBgColor}" />
+    <SolidColorBrush x:Key="ListViewItemBackgroundSelectedPointerOver" Color="{StaticResource RowSelectedBgColor}" />
+    <SolidColorBrush x:Key="ListViewItemBackgroundSelectedPressed" Color="{StaticResource RowSelectedBgColor}" />
+
+    <!-- ===== 侧栏导航项（选中态 = RowSelectedBg + 左指示条 Accent）===== -->
+    <Style x:Key="RailNavItemStyle" TargetType="ListBoxItem">
+        <Setter Property="MinHeight" Value="44" />
+        <Setter Property="Padding" Value="12,0" />
+        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+    </Style>
+
+    <Style x:Key="RailHeaderTextStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <Style x:Key="ServerRowTextStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+    </Style>
+
+    <Style x:Key="ServerAgeTextStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+        <Setter Property="FontSize" Value="11" />
+    </Style>
+</ResourceDictionary>

@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ===== 合集屏（t58 / U-L 分片二：Emby 合集 BoxSet）=====
+
+  规格依据（三态逐条注明）：
+  · [逆向到了] 海报几何（`HILLSLITE_UI_ANALYSIS.md` §4.4/§4.5、`UI_SPEC_SHELL.md` §7.3 实测）：
+    **166×249（2:3）**、列间距 **24**、卡片角标 = 右上角**紫色圆形**（数字 = 未看集数 / `✓` = 已看完）、
+    海报下方 = 标题（白、1 行省略）+ 副标题（灰）；
+  · [重建实现了] "合集页"这一屏在参照图里**没有对应物** ⇒ 整体构图维度一律 `INCONCLUSIVE(无参照)`
+    （见 `evidence/t58-collection-selftest.txt` 差异表）；
+  · [运行验证过了] 自检（`SHELL_SELFTEST_COLLECTION=1`）在**真实 Emby** 上取到真合集 + 真条目。
+
+  令牌纪律：颜色/圆角/图标字族只用 `Theme/Tokens.xaml` 的键；`#FF333333` 占位底是 HILLSLITE §4.5 实测值。
+-->
+<Page
+    x:Class="AIPlayer.Shell.Features.Collection.CollectionPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Background="{StaticResource PageBgBrush}">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- ===== 头部：返回 + 标题 + 副标题 ===== -->
+        <Grid Grid.Row="0" Margin="16,14,16,8" ColumnSpacing="12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <Button x:Name="BackButton" Grid.Column="0" Width="36" Height="36" Padding="0"
+                    Background="Transparent" BorderThickness="0" Click="OnBackClick"
+                    ToolTipService.ToolTip="返回上一屏">
+                <FontIcon Glyph="&#xE72B;" FontSize="{StaticResource IconSizeLarge}"
+                          FontFamily="{StaticResource IconFontFamily}"
+                          Foreground="{StaticResource TextPrimaryBrush}" />
+            </Button>
+
+            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="4">
+                <TextBlock x:Name="NameText" FontSize="24" FontWeight="SemiBold" MaxLines="1"
+                           TextTrimming="CharacterEllipsis"
+                           Foreground="{StaticResource TextPrimaryBrush}" />
+                <TextBlock x:Name="SubtitleText" FontSize="13"
+                           Foreground="{StaticResource TextSecondaryBrush}" />
+            </StackPanel>
+        </Grid>
+
+        <StackPanel Grid.Row="1" Spacing="3" Margin="16,0,16,10">
+            <TextBlock x:Name="SummaryText" FontSize="13" TextWrapping="Wrap"
+                       Foreground="{StaticResource TextSecondaryBrush}" />
+            <TextBlock x:Name="FailedText" FontSize="13" TextWrapping="Wrap" Visibility="Collapsed"
+                       Foreground="{StaticResource ServerFailBrush}" />
+        </StackPanel>
+
+        <!-- ===== 合集内条目（166×249，列间距 24）===== -->
+        <ScrollViewer Grid.Row="2" Padding="16,0,16,16" VerticalScrollBarVisibility="Auto">
+            <Grid>
+                <GridView x:Name="ItemList" Visibility="Collapsed"
+                          SelectionMode="None" IsItemClickEnabled="True" ItemClick="OnCardClick"
+                          ScrollViewer.VerticalScrollMode="Disabled"
+                          ScrollViewer.VerticalScrollBarVisibility="Disabled">
+                    <GridView.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <ItemsWrapGrid Orientation="Horizontal" ItemWidth="190" ItemHeight="320" />
+                        </ItemsPanelTemplate>
+                    </GridView.ItemsPanel>
+                    <GridView.ItemContainerStyle>
+                        <Style TargetType="GridViewItem">
+                            <Setter Property="Margin" Value="0,0,24,18" />
+                        </Style>
+                    </GridView.ItemContainerStyle>
+                    <GridView.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Width="166" Spacing="6">
+                                <Grid Width="166" Height="249">
+                                    <Border Background="#FF333333" CornerRadius="12"
+                                            Visibility="{Binding PlaceholderVisibility}" />
+                                    <FontIcon Glyph="&#xE91B;" FontSize="34"
+                                              FontFamily="{StaticResource IconFontFamily}"
+                                              HorizontalAlignment="Center" VerticalAlignment="Center"
+                                              Foreground="{StaticResource TextSecondaryBrush}"
+                                              Visibility="{Binding PlaceholderVisibility}" />
+                                    <Image Source="{Binding Image}" Stretch="UniformToFill" />
+
+                                    <Border HorizontalAlignment="Right" VerticalAlignment="Top"
+                                            Margin="0,6,6,0" MinWidth="22" Height="22" CornerRadius="11"
+                                            Background="{StaticResource AccentBrush}"
+                                            Visibility="{Binding BadgeVisibility}">
+                                        <TextBlock Text="{Binding BadgeText}" FontSize="12" Margin="6,0"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                   Foreground="#FF202020" />
+                                    </Border>
+                                </Grid>
+                                <TextBlock Text="{Binding Title}" FontSize="14" MaxLines="1"
+                                           TextTrimming="CharacterEllipsis"
+                                           Foreground="{StaticResource TextPrimaryBrush}" />
+                                <TextBlock Text="{Binding Subtitle}" FontSize="12" MaxLines="1"
+                                           TextTrimming="CharacterEllipsis"
+                                           Foreground="{StaticResource TextSecondaryBrush}" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </GridView.ItemTemplate>
+                </GridView>
+
+                <StackPanel x:Name="LoadingPanel" Spacing="12"
+                            HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <ProgressRing IsActive="True" Width="36" Height="36" />
+                    <TextBlock x:Name="LoadingText" FontSize="13" HorizontalAlignment="Center"
+                               Foreground="{StaticResource TextSecondaryBrush}" />
+                </StackPanel>
+
+                <StackPanel x:Name="EmptyPanel" Visibility="Collapsed" Spacing="10"
+                            HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <TextBlock x:Name="EmptyTitle" FontSize="16" HorizontalAlignment="Center"
+                               Foreground="{StaticResource TextPrimaryBrush}" />
+                    <TextBlock x:Name="EmptyDetail" FontSize="13" TextWrapping="Wrap" MaxWidth="560"
+                               HorizontalAlignment="Center" TextAlignment="Center"
+                               Foreground="{StaticResource TextSecondaryBrush}" />
+                </StackPanel>
+            </Grid>
+        </ScrollViewer>
+    </Grid>
+</Page>

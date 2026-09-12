@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="AIPlayer.Shell.Features.Logs.LogsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Grid Padding="24" RowSpacing="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Spacing="4">
+            <TextBlock FontSize="24" FontWeight="SemiBold" Text="日志" />
+            <TextBlock x:Name="SummaryText" Opacity="0.7" TextWrapping="Wrap" Text="正在载入…" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8">
+            <ComboBox x:Name="LevelBox" Width="110" SelectedIndex="0" SelectionChanged="Level_Changed">
+                <ComboBoxItem Content="全部" Tag="all" />
+                <ComboBoxItem Content="信息" Tag="info" />
+                <ComboBoxItem Content="警告" Tag="warn" />
+                <ComboBoxItem Content="错误" Tag="error" />
+            </ComboBox>
+            <TextBox x:Name="SearchBox" Width="220" PlaceholderText="按关键字过滤" TextChanged="Search_Changed" />
+            <Button Content="刷新" Click="Refresh_Click" />
+            <Button Content="复制全部" Click="Copy_Click" />
+            <Button Content="打开日志文件" Click="OpenFile_Click" />
+            <Button Content="打开所在目录" Click="OpenDir_Click" />
+            <Button Content="清空" Click="Clear_Click" />
+        </StackPanel>
+
+        <Border Grid.Row="2" CornerRadius="8"
+                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+            <ListView x:Name="LogList" Padding="4" SelectionMode="Extended"
+                      ScrollViewer.HorizontalScrollMode="Disabled">
+                <ListView.ItemTemplate>
+                    <DataTemplate>
+                        <Grid ColumnSpacing="10" Padding="2">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="72" />
+                                <ColumnDefinition Width="56" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" FontFamily="Consolas" Opacity="0.75"
+                                       Text="{Binding TimeText}" />
+                            <TextBlock Grid.Column="1" FontFamily="Consolas" FontWeight="SemiBold"
+                                       Foreground="{Binding LevelBrush}" Text="{Binding LevelText}" />
+                            <TextBlock Grid.Column="2" FontFamily="Consolas" TextWrapping="Wrap"
+                                       Text="{Binding Message}" />
+                        </Grid>
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+            </ListView>
+        </Border>
+
+        <TextBlock x:Name="StatusText" Grid.Row="3" Opacity="0.7" TextWrapping="Wrap" />
+    </Grid>
+</Page>

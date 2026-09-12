@@ -1,0 +1,56 @@
+===== ORIGINAL: data/player/AIPlayer.MpvHost.dll =====
+  file size   : 979,456
+  .text       : vsize=  749,312 rawsize=  749,568
+  .rsrc       : vsize=  229,364 rawsize=  229,376
+  CLR flags   : 0x00000001  [IL_ONLY]
+  .rsrc size  : 229,364
+      ICON/1/0               size=   71,108
+      ICON/2/0               size=   19,288
+      ICON/3/0               size=    5,431
+      ICON/4/0               size=    3,281
+      ICON/5/0               size=    1,655
+      ICON/6/0               size=      605
+      GROUP_ICON/32512/0     size=       90
+      VERSION/1/0            size=      868
+      MANIFEST/1/0           size=  126,479
+  resources total: 228,805
+  stream #Blob     : size=   43,692
+  stream #GUID     : size=       16
+  stream #Strings  : size=   87,008
+  stream #US       : size=  155,120
+  stream #~        : size=  163,752
+
+===== REBUILT: reversed/MpvHost/rebuilt/AIPlayer.MpvHost.dll =====
+  file size   : 1,047,552
+  .text       : vsize=  817,216 rawsize=  817,664
+  .rsrc       : vsize=  229,364 rawsize=  229,376
+  CLR flags   : 0x00000001  [IL_ONLY]
+  .rsrc size  : 229,364
+      ICON/1/0               size=   71,108
+      ICON/2/0               size=   19,288
+      ICON/3/0               size=    5,431
+      ICON/4/0               size=    3,281
+      ICON/5/0               size=    1,655
+      ICON/6/0               size=      605
+      GROUP_ICON/32512/0     size=       90
+      VERSION/1/0            size=      868
+      MANIFEST/1/0           size=  126,479
+  resources total: 228,805
+  stream #Blob     : size=   48,632
+  stream #GUID     : size=       16
+  stream #Strings  : size=   92,656
+  stream #US       : size=  155,072
+  stream #~        : size=  168,076
+
+===== RESOURCE DIFF =====
+  [OK  ] GROUP_ICON/32512/0     original=       90  rebuilt=       90
+  [OK  ] ICON/1/0               original=   71,108  rebuilt=   71,108
+  [OK  ] ICON/2/0               original=   19,288  rebuilt=   19,288
+  [OK  ] ICON/3/0               original=    5,431  rebuilt=    5,431
+  [OK  ] ICON/4/0               original=    3,281  rebuilt=    3,281
+  [OK  ] ICON/5/0               original=    1,655  rebuilt=    1,655
+  [OK  ] ICON/6/0               original=      605  rebuilt=      605
+  [OK  ] MANIFEST/1/0           original=  126,479  rebuilt=  126,479
+  [OK  ] VERSION/1/0            original=      868  rebuilt=      868
+
+资源层面：完全一致 ✔

@@ -1,0 +1,24 @@
+# kernel/src 是 reversed/MpvHost/** 的反编译副本（fork 基线），它沿用反编译产物的排版：Tab 缩进 + CRLF。
+#
+# 为什么不套用仓库根的风格（4 空格 + LF）：`dotnet format` 会因此把 120 个反编译文件几乎每一行都改写，
+# 而 kernel 的唯一价值恰恰是"它与 reversed 的差异可读" —— 全量重排会把这份差异抹平，
+# 我们就再也分不清"某条改动到底是不是我们做的"。
+#
+# 所以这里只覆写**排版**两项；语义规则（IDE0005 未用 using、IDE0051/0052 未用成员、
+# IDE0011 必须带大括号、IDE0161 file-scoped namespace 等）仍然从仓库根的 .editorconfig 继承，照常生效。
+#
+# ⚠️ 配套红线：任何批量改写（含 `dotnet format`）都**必须排除 reversed/**；改完核 `git status --porcelain -- reversed/` = 空。
+
+[*]
+indent_style = tab
+indent_size = 4
+end_of_line = crlf
+# 反编译产物里存在行尾空白；保留它，避免为了形式把 diff 撑大（语义规则不受影响）。
+trim_trailing_whitespace = false
+
+# 反编译产物内部混用了空格/制表符缩进，且部分行尾带空白；打开逐行排版校验就等于要求"把 120 个文件重排一遍"，
+# 那正是本文件要避免的事。
+# 实测（2026-09-12）：`dotnet format --verify-no-changes --severity warn` 在**手写文件**上已可绿
+# （`WinUISample.Models/KernelControlCommand.cs` ⇒ exit 0 / 0 错），但在**反编译文件**上仍红
+# （`PlayerViewModel.cs` 534 项：457 项"插入制表符"[反编译 switch 体缩进] + 行尾空白等）。
+# ⇒ 门禁按"手写 vs 反编译"分层，不在此处关闭诊断（关掉 IDE0055 实测**不能**抑制 dotnet format 的 whitespace 检查）。

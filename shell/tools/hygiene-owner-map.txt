@@ -1,0 +1,39 @@
+# hygiene-owner-map.txt -- path-regex <whitespace> owner
+# Owner: verifier (maintained by hand; this file is the ONLY place owner attribution comes from).
+#
+# WHY A FILE: ownership cannot be derived from a path, and a gate that guesses an owner sends the
+# work list to the wrong person. Unknown paths therefore print `owner=UNMAPPED` instead of a guess.
+#
+# Source: captain 2026-09-12 owner-dispatch ruling (landed by verifier from that dispatch).
+# If the captain re-dispatches: edit this table; the gate byOwner= and FINDING owner= follow it.
+# Staleness: this table is the landed form of a human mapping and goes stale with dispatch --
+#             when numbers disagree, check this table first, then the code.
+# NOTE: keep this file ASCII-only (comments included). A non-ASCII comment line can swallow the
+#       following newline when a tool reads it as ANSI/GBK, which silently drops the next row.
+^shell/App/KernelHost/          ui2
+^shell/Services/                services
+# captain 2026-09-12 added (ui3 reported a table-vs-dispatch drift): Aggregate is dispatched to ui3
+# (t232 evidence) so the old ui2 row was stale; also filled the faces that used to print UNMAPPED.
+^shell/App/Features/Aggregate/  ui3
+^shell/App/Features/Search/     ui3
+^shell/App/Features/Servers/    ui3
+^shell/App/Features/Settings/   ui3
+^shell/App/Features/Home/       ui2
+^shell/App/Features/Library/    ui2
+^shell/App/Features/Favorites/  ui2
+^shell/App/Features/Detail/     ui
+^shell/App/Infrastructure/      ui2
+^shell/App/Shell/               ui
+^shell/App/Theme/               ui
+^shell/App/App.xaml             ui
+^shell/App/Program.cs           ui
+^shell/App/MainWindow.xaml.cs   ui
+^shell/App/ExitProbe.cs         ui
+^shell/App/tools/               ui
+# captain 2026-09-12 added: Player face (new directory from t221 in-playback controls). Its absence
+# made the three files H7 happened to hit print owner=UNMAPPED (reported by reviewer, adopted).
+^shell/App/Features/Player/     ui
+^shell/tools/                   verifier
+# captain 2026-09-12 added: the single owner of the kernel branch (requested by kernel2; ownership
+# cannot be derived from a path, and without a row "-ScanRoot kernel" counts kernel stock as unmapped).
+^kernel/                        kernel2

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="AIPlayer.Shell.PlaceholderPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Grid Padding="24" RowSpacing="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <TextBlock x:Name="TitleText" Grid.Row="0"
+                   FontSize="24" FontWeight="SemiBold" />
+
+        <!-- 依据：shell/docs/DESIGN.md §5 屏清单。规格编号只留在注释里，不进可见文案
+             （CODE_STANDARD §8.5 豁免只给证据/日志输出文本与判据字面量；可见 Text= 必须清）。 -->
+        <TextBlock Grid.Row="1" Opacity="0.7" TextWrapping="Wrap"
+                   Text="外壳骨架已就绪。本页为占位页 —— 后续按设计稿的屏清单逐个落地（媒体库 / 详情 / 播放 / 音乐 / 有声书 / 服务器 / 日志 / 设置）。" />
+
+        <Border Grid.Row="2" CornerRadius="8" Padding="16"
+                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+            <StackPanel Spacing="8">
+                <TextBlock FontWeight="SemiBold" Text="已接入的基础设施" />
+                <TextBlock Text="· 服务器接入：媒体库、搜索、收藏与播放已接通（Emby）" />
+                <TextBlock Text="· 播放内核：内置播放器组件已随应用就位，无需另行安装" />
+                <TextBlock Text="· 界面资源：主题、图标与样式已随应用注册" />
+                <TextBlock Text="· 图标：使用应用自带的图标字体" />
+                <TextBlock Text="· 日志：写入应用数据目录下的 logs 文件夹，便于排查问题" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</Page>

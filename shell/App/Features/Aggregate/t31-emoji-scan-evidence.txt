@@ -1,0 +1,87 @@
+# t31 附：emoji / `U+FE0F` 码位扫描证据（含对照组与逐归属读数）
+
+> 归属：`ui2`。用途：captain 要求把**可复现正文 + 对照组**落成证据，并把**过滤逻辑**交给 `verifier` 挂进门禁。
+> 纪律：`U+FE0F`（变体选择符）与 `U+1F000–U+1FAFF`（星平面 emoji）**同一个码位在屏上就会把符号渲染成彩色 emoji** ⇒ 必须**按码位扫**，不能靠肉眼。
+
+## 1. 扫描器正文（ASCII-only，PS 5.1 安全；可直接复跑）
+
+```powershell
+param([string]$Root = "E:\AI Player\shell\App")
+$files = Get-ChildItem -Path $Root -Recurse -File -Include *.cs,*.xaml -ErrorAction SilentlyContinue |
+  Where-Object { $_.FullName -notmatch "\\obj\\|\\bin\\" } | Sort-Object FullName
+$totalEmoji = 0; $totalFe0f = 0; $hits = @()
+foreach ($f in $files) {
+  $text = [IO.File]::ReadAllText($f.FullName, [Text.Encoding]::UTF8)
+  $emoji = 0
+  foreach ($m in [regex]::Matches($text, "[\uD800-\uDBFF][\uDC00-\uDFFF]")) {
+    $cp = [char]::ConvertToUtf32($m.Value, 0)
+    if ($cp -ge 0x1F000 -and $cp -le 0x1FAFF) { $emoji++ }
+  }
+  $fe = ([regex]::Matches($text, "\uFE0F")).Count
+  $all = [IO.File]::ReadAllLines($f.FullName, [Text.Encoding]::UTF8)
+  for ($i = 0; $i -lt $all.Count; $i++) {
+    $l = $all[$i]
+    if (([regex]::Matches($l, "[\uD800-\uDBFF][\uDC00-\uDFFF]")).Count -gt 0 -or ([regex]::Matches($l, "\uFE0F")).Count -gt 0) {
+      $hits += ("HIT " + $f.FullName + ":" + ($i + 1))
+    }
+  }
+  if ($emoji -gt 0 -or $fe -gt 0) { Write-Output ("FILE " + $f.FullName + " emoji=" + $emoji + " fe0f=" + $fe) }
+  $totalEmoji += $emoji; $totalFe0f += $fe
+}
+Write-Output ("SCANNED files=" + $files.Count + " emojiAstral=" + $totalEmoji + " fe0f=" + $totalFe0f)
+Write-Output ("HITLINES=" + $hits.Count)
+```
+
+**两个实现要点（少一个就会假阴性/假阳性）**：
+1. **星平面字符必须按代理对合并后算码位**（`[char]::ConvertToUtf32`）。只按 `[int]$ch` 逐 UTF-16 码元看，`U+1F534` 会被看成两个 BMP 字符，任何"星平面 emoji"判据都会**漏**。
+2. `U+FE0F` 单独一条正则即可（它是 BMP 字符，不需要合并）——但**它必须单列一条判据**：`⚠`(U+26A0) 单独出现是文字符号，`⚠️`(U+26A0 U+FE0F) 才会渲染成彩色 emoji。
+
+## 2. 对照组（证明扫描器本身有效，**可判 False**）
+
+```powershell
+# 合成一个"脏"文件与一个"干净"文件，用同一扫描器扫
+[IO.File]::WriteAllText($dirty, "// known emoji: " + [char]::ConvertFromUtf32(0x1F534) + " and FE0F " + [char]0xFE0F)
+[IO.File]::WriteAllText($clean, "// no emoji here, no variation selector")
+```
+
+| 文件 | 期望 | 实测 |
+|---|---|---|
+| `dirty.cs`（含 `U+1F534` + `U+FE0F`） | emoji=1 / fe0f=1 | **emoji=1 / fe0f=1** ✓ |
+| `clean.cs` | emoji=0 / fe0f=0 | **emoji=0 / fe0f=0** ✓ |
+| 汇总 | `SCANNED files=2 emojiAstral=1 fe0f=1` | **逐字一致** ✓ |
+
+⇒ 扫描器**能报也能不报**（不是恒 True 的假判据）。
+
+## 3. 真实扫描（`shell/App/**`，2026-09-12 04:3x，HEAD 见台账）
+
+```
+SCANNED files=68  emojiAstral=46  fe0f=51  HITLINES=97
+```
+
+**逐归属拆分**（按文件路径判归属，不看目录像谁）：
+
+| 归属 | 命中文件 | 星平面 emoji | `U+FE0F` |
+|---|---|---|---|
+| `ui2`（Aggregate/Favorites/Person/Collection/KernelHost/Infrastructure） | 17 | 15 | 29 |
+| `ui3`（Search/Servers/Settings） | 11 | 19 | 11 |
+| `ui`（Home/Library/Detail/MainWindow/Theme/App.xaml） | 7 | 11 | 7 |
+| 其它（`App.xaml.cs`/`Program.cs`/`ShellState`/`ExitProbe`/`Tokens.xaml` 等顶层件） | 3 | 1 | 4 |
+
+**抽样逐码位核对（证明命中是真的，不是假阳性）**：
+```
+App.xaml:11                U+26A0 U+FE0F …        ⇒ ⚠️（星平面无、FE0F 有）
+ExitProbe.cs:7             U+1F534 …             ⇒ 🔴（星平面 emoji）
+MediaSnapshotSource.cs:10  U+1F534 …             ⇒ 🔴
+FavoritesPage.xaml.cs:140  （无特殊码位）          ⇒ 早前那处已清（复扫已不命中）
+```
+⇒ 命中**全部落在注释**（严重度标记 `🔴`/`⚠️`），**不是用户可见文案**（可见文案另有纪律：剥 XML 注释 + 取 `Text=/Content=/Header=` 字面值，那一层我的两屏是 0）。
+
+## 4. 一条我自己踩过的假阳性（方法论，必须写进工装说明）
+
+**不要用 `powershell -Command "…含中文字面量…"` 来扫**：PS 5.1 把 `-Command` 里的非 ASCII 字面量按 ANSI 解码 ⇒ **会对干净文件报出命中**（我第一次就是这么被骗的，得出一批并不存在的"emoji 残留"）。正确做法 = **把扫描器写成 ASCII-only 的 `.ps1` 文件**（本文 §1 就是），非 ASCII 一律用 `\uXXXX` 转义。
+
+## 5. 结论与处置建议
+
+1. 这是一条**全仓、跨归属**的存量（`ui2` 17 / `ui3` 11 / `ui` 7 / 其它 3 个文件），不是单点缺陷 ⇒ 门禁若判"一命中即 FAIL"，会同时红掉四个人。
+2. 建议门禁形态：**棘轮 + 逐归属**（`byOwner=` 计数）+ **`U+FE0F` 单列一条**（与星平面 emoji 分开报），并提供 `-EmojiBaseline` 参数做反向对照（基线调小 ⇒ 必须 FAIL）。
+3. **我这 17 个文件我认领**（`ui2` 名下 15 + 29），整改方式 = 注释里的 `🔴`/`⚠️` 换成 ASCII 标记 `[!]`（仓内既有约定），**改完用本扫描器复扫 = 0**，并随 `t72` 批次一起构建验证。

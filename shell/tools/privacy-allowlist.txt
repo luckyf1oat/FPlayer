@@ -1,0 +1,60 @@
+# Privacy allow-list for capture tooling (consumed by shell/tools/evidence-hygiene-check.ps1, gate H1).
+#
+# Format: one regex per line, matched against the repository-relative POSIX path of the script that contains
+# CopyFromScreen / BitBlt on a NON-COMMENT line. Blank lines and lines starting with # are ignored, and they
+# may be interleaved with entries in any order (a comment can document the entry right below it).
+#
+# COPY THIS SHAPE (the ' # ' separator is what the reader -- and the parser -- expects):
+#     ^shell/App/tools/<script>\.ps1$ # reason: <which window / why PrintWindow is not enough / who owns it> rect-source=<value> owner=<name>
+# The two fields may also be written right after the regex WITHOUT ' # '; the parser strips them off the line
+# end and prints `NOTE|H1|allow-list entry WITHOUT the ' # ' separator` so that shape stays VISIBLE instead of
+# silently working (or silently NOT working -- that was the old bug). ' # ' is preferred: it says where the
+# regex ends.
+#
+# WHY THIS FILE CAN BE EMPTY: it is the ESCAPE HATCH, not the default. A file whose occurrences of the token
+# sit inside QUOTED literals (the gate searches for the token; it never captures) is classified SEARCH-ONLY
+# mechanically and needs no entry -- the gate prints `NOTE|H1|search-only-literal|<file>:<line>` for it.
+# An entry here is only for a REAL capture call.
+#
+# Rules for adding an entry:
+#   * the file must NOT capture a window that is not ours (a screen copy of a non-foreground window grabs the
+#     whole user desktop -- that happened twice in this project);
+#   * the reason must be concrete (which window, why PrintWindow is not enough, who owns it);
+#   * the entry MUST carry the two machine-checkable fields (captain 2026-09-12 #4):
+#         rect-source=<foreground-window|own-window>   owner=<name>
+#     own-window        = the rect comes from the script's OWN hwnd; no foregrounding is needed
+#     foreground-window = the script MUST bring the window to the front FIRST, otherwise CopyFromScreen grabs
+#                         whatever is on top (D3D surfaces: PrintWindow comes back black, so this fallback has
+#                         to stay -- but then foregrounding is part of the precondition)
+#     A missing or invalid rect-source/owner is still a VIOLATION (`VIOLATION-MISSING-FIELD`): grading must be
+#     a FIELD, not prose the reader has to interpret. The four guards still have to be in the script itself.
+#
+# TWO INDEPENDENT CONDITIONS, TWO COUNTERS (read them separately!):
+#     entriesMatched=  the path matched an entry above (AND that entry carried a valid field pair)
+#     fullyAllowed=    that entry matched AND the script itself shows the four guards on NON-COMMENT lines
+# A hit can be `REGISTERED-NO-BOUNDARY` (entry fine, guards missing from the script) -- that is still violating.
+# The four guard keywords the gate looks for ON CODE LINES (a guard in a comment is a promise, not a guard):
+#     desktop-class          : Progman | WorkerW | Shell_TrayWnd
+#     >=95% virtual desktop  : 0.95 | 95% | virtualDesktop | screenArea | VIRTUALSCREEN
+#     pid                    : GetWindowThreadProcessId | TargetPid | -Pid | ProcessId
+#     written assertion      : sidecar | ASSERTION | sha256_12 | SOURCE ASSERTION
+#
+# Built-in (always on, not listed here): ^shell/tools/popup-capture.*\.ps1$ -- PrintWindow + explicit HWND only.
+#
+# ---------------------------------------------------------------------------------------------------------
+# (no entries: the token no longer appears UNQUOTED anywhere under shell/**)
+# The gate's own file used to have a self-entry here. That self-exemption is gone on purpose: its three token
+# occurrences all sit inside single-quoted regex/message literals, so the SEARCH-ONLY rule covers it without
+# the tool naming itself -- a self-exemption inside a privacy allow-list is exactly the shape that would later
+# hide a real violation.
+#
+# ---------------------------------------------------------------------------------------------------------
+# ENTRY 1/2 -- ui, graded 档 B (captain 2026-09-12 批准；owner 自填)
+#   Target window: the AIPlayer.Shell window this script itself launched (never another process's window).
+#   Precondition: bring it to the front FIRST (SetForegroundWindow + SetWindowPos(TOPMOST)) and then take
+#   GetWindowRect of THAT window; without foregrounding, CopyFromScreen would grab whatever is on top.
+#   Why the fallback has to exist at all: the kernel's D3D-composited window comes back all-white / all-black
+#   under PrintWindow (measured), so screen copy is the only channel for it.
+^shell/App/tools/t26-evidence\.ps1$ # rect-source=foreground-window owner=ui
+# ENTRY 2/2 -- ui, same shape (captures a window selected BY PID of a process the caller owns)
+^shell/App/tools/win-capture-pid\.ps1$ # rect-source=foreground-window owner=ui

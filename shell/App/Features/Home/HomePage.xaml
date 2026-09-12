@@ -1,0 +1,198 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  首页（`Features/Home`）—— 默认落点（`MainWindow.StartTag()` 未设环境变量时进这里）。
+  形态对应参照物：Hero 大图 + 「继续观看」横排 + 每个媒体库一行（类型芯片行暂未做，见回执）。
+
+  取数面全部走既有服务层：`GetResumeAsync`（继续观看）/ `GetViewsAsync`（媒体库列表）/
+  `GetItemsAsync(parentId: …)`（库内条目）/ `ImageUrl`。
+  图片走**字节通道**（`Features/Aggregate/Shared/ImageSourceLoader`）—— 与详情页同一条：
+  非打包 WinUI3 里 `BitmapImage(远程 URL)` 实测报 `E_NETWORK_ERROR`（图片全空）。
+  点卡片 ⇒ 进详情页（与媒体库页一致），不在首页直接起播。
+
+  横排交互（用户 2026-09-12 要求「增加左右箭头 同时要横条」）：
+    · 每条横排悬停时出现 ◀ ▶ 两个圆形箭头，点一次翻**一屏**（`OnRowArrowClick` → 内层 ScrollViewer 的 `ChangeView`）；
+    · 横向滚动条**保留**（`HorizontalScrollBarVisibility="Auto"`），海报卡底部留 10 px 让滚条落在留白里、不压内容。
+  滚轮：由 `MainWindow.OnAnyPointerWheel` 在**根节点**统一裁决 —— 本页**不**自挂 `PointerWheelChanged`：
+  内层 ScrollViewer 处理完滚轮会把事件标 `Handled`，挂在子级上的处理器根本收不到（用户报障过"滚不动"）。
+-->
+<Page
+    x:Class="AIPlayer.Shell.Features.Home.HomePage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:ic="using:FluentIcons.WinUI"
+    xmlns:feat="using:AIPlayer.Shell.Features.Home"
+    Background="{StaticResource PageBgBrush}">
+
+    <Page.Resources>
+        <!-- 非空字符串 ⇒ Visible：角标/副行"没有就不画"。
+             [!] 这里**不能**用 `x:Bind BadgeVisibility`：`PosterTile` 是 `HomePage` 的嵌套类，
+             `x:DataType="feat:PosterTile"` 解析不到嵌套类型 ⇒ XamlCompiler 报 MSB3073（实测踩过）。 -->
+        <feat:NonEmptyToVisibilityConverter x:Key="NonEmptyToVisibility" />
+        <!-- 横排左右箭头：圆形、半透明黑底、悬停才出现（默认 Collapsed，避免透明按钮抢点击） -->
+        <Style x:Key="RowArrowButtonStyle" TargetType="Button">
+            <Setter Property="Width" Value="36" />
+            <Setter Property="Height" Value="36" />
+            <Setter Property="CornerRadius" Value="18" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Background" Value="#CC101010" />
+            <Setter Property="Foreground" Value="#FFFFFFFF" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Visibility" Value="Collapsed" />
+            <Setter Property="IsTabStop" Value="False" />
+        </Style>
+    </Page.Resources>
+
+    <ScrollViewer x:Name="PageScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel>
+
+            <!-- Hero：主源最近一条的横图（取不到就留深色底） -->
+            <Grid Height="240">
+                <Image x:Name="HeroImage" Stretch="UniformToFill" />
+                <Rectangle>
+                    <Rectangle.Fill>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                            <GradientStop Color="#00000000" Offset="0.35" />
+                            <GradientStop Color="#CC101010" Offset="1.0" />
+                        </LinearGradientBrush>
+                    </Rectangle.Fill>
+                </Rectangle>
+                <StackPanel VerticalAlignment="Bottom" Margin="24,0,24,16" Spacing="4">
+                    <TextBlock x:Name="HeroTitle" FontSize="24" FontWeight="SemiBold"
+                               Foreground="{StaticResource TextPrimaryBrush}" TextTrimming="CharacterEllipsis" />
+                    <TextBlock x:Name="StatusText" FontSize="12"
+                               Foreground="{StaticResource TextSecondaryBrush}" />
+                </StackPanel>
+            </Grid>
+
+            <!-- 继续观看 -->
+            <StackPanel x:Name="ContinueSection" Margin="16,16,16,0" Spacing="8" Visibility="Collapsed">
+                <TextBlock Text="继续观看" FontSize="16" FontWeight="SemiBold"
+                           Foreground="{StaticResource TextPrimaryBrush}" />
+                <Grid PointerEntered="OnRowPointerEntered" PointerExited="OnRowPointerExited">
+                    <ListView x:Name="ContinueList" SelectionMode="Single" IsItemClickEnabled="True"
+                              ItemClick="OnTileClick" Background="Transparent" BorderThickness="0"
+                              ScrollViewer.HorizontalScrollMode="Enabled"
+                              ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                              ScrollViewer.VerticalScrollMode="Enabled">
+                        <ListView.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal" />
+                            </ItemsPanelTemplate>
+                        </ListView.ItemsPanel>
+                        <ListView.ItemTemplate>
+                            <DataTemplate>
+                                <!-- 底部 10 px 留白 = 横向滚条的落位，不压字幕行 -->
+                                <StackPanel Width="216" Spacing="6" Margin="0,0,16,10">
+                                    <!-- t196（裁定 (b)）+ t287（密度对齐参考帧）
+                                         继续观看行 = **16:9 横卡**：t287 起 216×121（= 1.785，与参考帧 216×121 = 1.7851 差 0.01%）；
+                                         行内间距 16、行首 16 与参考帧（间距 16 / 行首 x=272 = 侧栏 256 + 16）对齐；
+                                         下方媒体库行仍保持 2:3（166×249），两行口径不同。 -->
+                                    <Grid Width="216" Height="121">
+                                        <Border CornerRadius="12" Background="#FF2A2A2A" />
+                                        <Image Source="{Binding Image}" Stretch="Uniform" />
+                                        <!-- t263：继续观看行**回落支几何收口** —— 由 `UniformToFill` 改 `Uniform`（留边等比）：
+                                             素材若是 2:3 主剧集海报（服务层出口②）而框为 16:9（166×93）⇒ 横裁 0（基线 4/8 张横裁 60.24%–62.65%）；
+                                             素材若是 16:9 Backdrop（出口③/④ 的主剧集背景图）⇒ 素材比例 1.779 对框比例 1.785 ⇒ 留边 ≤ 0.4%，可忽略。回落顺序（Backdrop 优先）不变。 -->
+                                        <!-- 角标（t152 ①）：剧集 = 集数；否则年份；没有就不画 -->
+                                        <Border Background="#CC000000" CornerRadius="8" Padding="6,2"
+                                                HorizontalAlignment="Right" VerticalAlignment="Top" Margin="6"
+                                                Visibility="{Binding Badge, Converter={StaticResource NonEmptyToVisibility}}">
+                                            <TextBlock Text="{Binding Badge}" FontSize="11" Foreground="#FFFFFFFF" />
+                                        </Border>
+                                    </Grid>
+                                    <TextBlock Text="{Binding Caption}" FontSize="12" MaxLines="2"
+                                               TextTrimming="CharacterEllipsis"
+                                               Foreground="{StaticResource TextPrimaryBrush}" />
+                                    <!-- 副行（t152 ②）：继续观看行 = 「S02E01 · 集名」；其它行留空不画 -->
+                                    <TextBlock Text="{Binding SubCaption}" FontSize="11" MaxLines="1"
+                                               TextTrimming="CharacterEllipsis" Opacity="0.75"
+                                               Visibility="{Binding SubCaption, Converter={StaticResource NonEmptyToVisibility}}"
+                                               Foreground="{StaticResource TextPrimaryBrush}" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+                    <Button Style="{StaticResource RowArrowButtonStyle}" Tag="left"
+                            HorizontalAlignment="Left" Margin="4,0,0,0" Click="OnRowArrowClick">
+                        <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE76B;" FontSize="14" />
+                    </Button>
+                    <Button Style="{StaticResource RowArrowButtonStyle}" Tag="right"
+                            HorizontalAlignment="Right" Margin="0,0,4,0" Click="OnRowArrowClick">
+                        <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE76C;" FontSize="14" />
+                    </Button>
+                </Grid>
+            </StackPanel>
+
+            <!-- 每个媒体库一行（标题由代码填，行内是同一套海报模板） -->
+            <ItemsControl x:Name="LibraryHost">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel Margin="24,16,24,0" Spacing="8">
+                            <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextPrimaryBrush}" />
+                            <Grid PointerEntered="OnRowPointerEntered" PointerExited="OnRowPointerExited">
+                                <ListView ItemsSource="{Binding Tiles}" SelectionMode="Single"
+                                          IsItemClickEnabled="True" ItemClick="OnTileClick"
+                                          Background="Transparent" BorderThickness="0"
+                                          ScrollViewer.HorizontalScrollMode="Enabled"
+                                          ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                          ScrollViewer.VerticalScrollMode="Enabled">
+                                    <ListView.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Orientation="Horizontal" />
+                                        </ItemsPanelTemplate>
+                                    </ListView.ItemsPanel>
+                                    <ListView.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Width="166" Spacing="6" Margin="0,0,12,10">
+                                                <Grid Width="166" Height="249">
+                                                    <Border CornerRadius="12" Background="#FF2A2A2A" />
+                                                    <Image Source="{Binding Image}" Stretch="UniformToFill" />
+                                                    <!-- 角标（t152 ①）：剧集 = 集数；否则年份；没有就不画 -->
+                                                    <Border Background="#CC000000" CornerRadius="8" Padding="6,2"
+                                                            HorizontalAlignment="Right" VerticalAlignment="Top" Margin="6"
+                                                            Visibility="{Binding Badge, Converter={StaticResource NonEmptyToVisibility}}">
+                                                        <TextBlock Text="{Binding Badge}" FontSize="11" Foreground="#FFFFFFFF" />
+                                                    </Border>
+                                                </Grid>
+                                                <TextBlock Text="{Binding Caption}" FontSize="12" MaxLines="2"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           Foreground="{StaticResource TextPrimaryBrush}" />
+                                                <!-- 副行（t152 ②）：集号等显式标识；没有就不画 -->
+                                                <TextBlock Text="{Binding SubCaption}" FontSize="11" MaxLines="1"
+                                                           TextTrimming="CharacterEllipsis" Opacity="0.75"
+                                                           Visibility="{Binding SubCaption, Converter={StaticResource NonEmptyToVisibility}}"
+                                                           Foreground="{StaticResource TextPrimaryBrush}" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ListView.ItemTemplate>
+                                </ListView>
+                                <Button Style="{StaticResource RowArrowButtonStyle}" Tag="left"
+                                        HorizontalAlignment="Left" Margin="4,0,0,0" Click="OnRowArrowClick">
+                                    <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE76B;" FontSize="14" />
+                                </Button>
+                                <Button Style="{StaticResource RowArrowButtonStyle}" Tag="right"
+                                        HorizontalAlignment="Right" Margin="0,0,4,0" Click="OnRowArrowClick">
+                                    <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE76C;" FontSize="14" />
+                                </Button>
+                            </Grid>
+                        </StackPanel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <StackPanel Orientation="Horizontal" Spacing="12" Margin="24,20,24,32">
+                <Button x:Name="ReloadButton" Click="OnReloadClick">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <ic:SymbolIcon Symbol="ArrowSync" IconVariant="Regular" FontSize="14" />
+                        <TextBlock Text="刷新" />
+                    </StackPanel>
+                </Button>
+                <TextBlock x:Name="FooterText" VerticalAlignment="Center" FontSize="12"
+                           Foreground="{StaticResource TextSecondaryBrush}" />
+            </StackPanel>
+
+        </StackPanel>
+    </ScrollViewer>
+</Page>

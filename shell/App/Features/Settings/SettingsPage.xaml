@@ -1,0 +1,274 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ===== 屏 C：设置（t30 / U-D，含 §9.1 版面 / §9.2 文案 / §9.3 缺陷修复 / §1.1 图标）=====
+  规格 = shell/docs/UI_SPEC_SHELL.md **§9 + §9.1 版面 + §9.2 文案 + §9.3 缺陷**
+  参照实测 = HILLSLITE_UI_ANALYSIS.md §2 屏 5 / `refs/original-ui/hl-05-settings-printwindow.png`
+  行清单：语言 / 主题 / 媒体库 / 备份与还原 / 同步 / 网络 / 关闭时最小化到托盘（+ 重置）
+  不做：Hills Lite Pro、账号（用户硬约束 1）
+
+  ★ §9.2 文案硬规则（本文件每条副说明都据此写）
+    ① 副说明 = 用户能读懂的一句话，**≤20 个汉字**、**单行不折行**（故不写 `TextWrapping`，用 `MaxLines=1`+省略号兜底）
+    ② 界面文案**禁止**出现：类名/服务名、字段名、绝对路径、检索结论、规格编号、过程语
+    ③ **实现理由一律挪到该行 ToolTip**（悬停可查），不占版面
+    ④ 置灰行只写用户能懂的原因（「暂不支持…」），不写为什么
+    ⑤ 行内按钮用动词短语，不放路径
+    ⑥ 页头不显示配置文件路径（改为「配置已加载」）
+
+  ★ §9.1 版面六条
+    ① 一屏一张卡（`Padding=0`）+ 行间 1px `ControlBorderBrush` 分隔线、行间零间距
+    ② 卡 `HorizontalAlignment="Stretch"`、无 `MaxWidth`
+    ③ 图标列固定 `Width="40"`、`FontSize=20`、`TextSecondaryBrush`、垂直居中
+    ④ 右列固定 `Width="176"`、控件 `HorizontalAlignment="Right"`
+       ⚠️ 与 §9.1 的 160 有一处**有意偏离**：160 装不下「导出配置 / 导入配置」这类**动词短语**按钮
+       （§9.2⑤ 要求按钮用动词短语）⇒ 整列统一 176 以保"右边缘对齐"这条判据；两列都对齐，只是更宽。
+    ⑤ 行 `MinHeight="56"` + `Padding="16,0"`；卡 `Padding="0"`
+    ⑥ 组标题左缩进 56、组标题→卡 8
+
+  🔴 图标用图标字体字形（§1.1：禁止 emoji / 文本符号）。
+  字体 = **`Segoe MDL2 Assets`**：本机 **Windows 10 19045 只有 `segmdl2.ttf`**，"Segoe Fluent Icons" **不存在**
+  ⇒ 用它渲染是**豆腐块 □**（放大截图已核：`Features/Servers/evidence/t30-settings-icons-zoom.png`）。
+  码点：语言 `E774`｜主题 `E790`｜媒体库 `E8F1`｜备份与还原 `E74E`｜同步 `E895`｜网络 `E968`｜托盘 `E7E8`｜重置 `E7A7`
+-->
+<Page
+    x:Class="AIPlayer.Shell.Features.Settings.SettingsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Background="{StaticResource PageBgBrush}">
+
+    <Grid Padding="24,16,24,24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Spacing="4" Margin="0,0,0,12">
+            <TextBlock Text="设置" FontSize="24" FontWeight="SemiBold"
+                       Foreground="{StaticResource TextPrimaryBrush}" />
+            <!-- §9.2⑥：页头只报状态，不显示配置文件路径 -->
+            <TextBlock x:Name="SummaryText" FontSize="12"
+                       Foreground="{StaticResource TextSecondaryBrush}" Text="配置已加载" />
+        </StackPanel>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel HorizontalAlignment="Stretch">
+                <TextBlock Text="通用" FontSize="12" FontWeight="SemiBold"
+                           Margin="56,0,0,8"
+                           Foreground="{StaticResource TextSecondaryBrush}" />
+
+                <Border Background="{StaticResource SurfaceBgBrush}" CornerRadius="8" Padding="0"
+                        HorizontalAlignment="Stretch">
+                    <StackPanel>
+
+                        <!-- 1 语言 -->
+                        <Grid x:Name="LanguageRow" MinHeight="56" Padding="16,0" ColumnSpacing="16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="40" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="320" />
+                            </Grid.ColumnDefinitions>
+                            <FontIcon Grid.Column="0" FontFamily="Segoe MDL2 Assets" Glyph="&#xE774;" FontSize="20"
+                                      VerticalAlignment="Center" Foreground="{StaticResource TextDisabledBrush}" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                <TextBlock Text="语言" Foreground="{StaticResource TextDisabledBrush}" />
+                                <TextBlock x:Name="LanguageDesc" FontSize="12" MaxLines="1" TextTrimming="CharacterEllipsis"
+                                           Foreground="{StaticResource TextDisabledBrush}" Text="暂不支持切换语言" />
+                            </StackPanel>
+                            <ComboBox x:Name="LanguageBox" Grid.Column="2" Width="200" IsEnabled="False"
+                                      HorizontalAlignment="Right" VerticalAlignment="Center" />
+                        </Grid>
+
+                        <Border Height="1" Background="{StaticResource ControlBorderBrush}" />
+
+                        <!-- 2 主题 -->
+                        <Grid x:Name="ThemeRow" MinHeight="56" Padding="16,0" ColumnSpacing="16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="40" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="320" />
+                            </Grid.ColumnDefinitions>
+                            <FontIcon Grid.Column="0" FontFamily="Segoe MDL2 Assets" Glyph="&#xE790;" FontSize="20"
+                                      VerticalAlignment="Center" Foreground="{StaticResource TextDisabledBrush}" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                <TextBlock Text="主题" Foreground="{StaticResource TextDisabledBrush}" />
+                                <TextBlock x:Name="ThemeDesc" FontSize="12" MaxLines="1" TextTrimming="CharacterEllipsis"
+                                           Foreground="{StaticResource TextDisabledBrush}" Text="暂不支持切换主题" />
+                            </StackPanel>
+                            <ComboBox x:Name="ThemeBox" Grid.Column="2" Width="200" IsEnabled="False"
+                                      HorizontalAlignment="Right" VerticalAlignment="Center" />
+                        </Grid>
+
+                        <Border Height="1" Background="{StaticResource ControlBorderBrush}" />
+
+                        <!-- 3 媒体库：§9.3① 修掉行内游离/重叠控件（原先数字框 Compact 竖排 ▲▼ 与清除 × 挤在一起且框过窄） -->
+                        <Grid x:Name="LibraryRow" MinHeight="56" Padding="16,0" ColumnSpacing="16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="40" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="320" />
+                            </Grid.ColumnDefinitions>
+                            <FontIcon Grid.Column="0" FontFamily="Segoe MDL2 Assets" Glyph="&#xE8F1;" FontSize="20"
+                                      VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                <TextBlock Text="媒体库" Foreground="{StaticResource TextPrimaryBrush}" />
+                                <TextBlock FontSize="12" MaxLines="1" TextTrimming="CharacterEllipsis"
+                                           Foreground="{StaticResource TextSecondaryBrush}" Text="每页显示条数；多服合并" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="12"
+                                        HorizontalAlignment="Right" VerticalAlignment="Center">
+                                <!-- 紧凑数字框（`Inline` 会渲成与暗色主题冲突的大蓝块；用户报障过） -->
+                                <NumberBox x:Name="PageSizeBox" Width="120" Minimum="10" Maximum="500"
+                                           SpinButtonPlacementMode="Hidden" ValueChanged="OnPageSizeChanged" />
+                                <ToggleSwitch x:Name="MergeLibsSwitch" OnContent="" OffContent="" MinWidth="44"
+                                              Toggled="OnMergeLibsToggled" />
+                            </StackPanel>
+                        </Grid>
+
+                        <Border Height="1" Background="{StaticResource ControlBorderBrush}" />
+
+                        <!-- 4 备份与还原 -->
+                        <Grid x:Name="BackupRow" MinHeight="56" Padding="16,0" ColumnSpacing="16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="40" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="320" />
+                            </Grid.ColumnDefinitions>
+                            <FontIcon Grid.Column="0" FontFamily="Segoe MDL2 Assets" Glyph="&#xE74E;" FontSize="20"
+                                      VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                <TextBlock Text="备份与还原" Foreground="{StaticResource TextPrimaryBrush}" />
+                                <TextBlock x:Name="BackupDesc" FontSize="12" MaxLines="1" TextTrimming="CharacterEllipsis"
+                                           Foreground="{StaticResource TextSecondaryBrush}" Text="导出或导入配置备份" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8"
+                                        HorizontalAlignment="Right" VerticalAlignment="Center">
+                                <Button x:Name="ExportButton" Content="导出配置" Width="84" Click="OnExportClick" />
+                                <Button x:Name="RestoreButton" Content="导入配置" Width="84" Click="OnRestoreClick" />
+                            </StackPanel>
+                        </Grid>
+
+                        <Border Height="1" Background="{StaticResource ControlBorderBrush}" />
+
+                        <!-- 5 同步 -->
+                        <Grid x:Name="SyncRow" MinHeight="56" Padding="16,0" ColumnSpacing="16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="40" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="320" />
+                            </Grid.ColumnDefinitions>
+                            <FontIcon Grid.Column="0" FontFamily="Segoe MDL2 Assets" Glyph="&#xE895;" FontSize="20"
+                                      VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                <TextBlock Text="同步" Foreground="{StaticResource TextPrimaryBrush}" />
+                                <TextBlock x:Name="SyncDesc" FontSize="12" MaxLines="1" TextTrimming="CharacterEllipsis"
+                                           Foreground="{StaticResource TextSecondaryBrush}" Text="合并多台服务器的同一部影片" />
+                            </StackPanel>
+                            <Button x:Name="SyncButton" Grid.Column="2" Content="立即同步" Width="176"
+                                    HorizontalAlignment="Right" VerticalAlignment="Center" Click="OnSyncClick" />
+                        </Grid>
+
+                        <Border Height="1" Background="{StaticResource ControlBorderBrush}" />
+
+                        <!-- 6 网络 -->
+                        <Grid x:Name="NetworkRow" MinHeight="56" Padding="16,0" ColumnSpacing="16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="40" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="320" />
+                            </Grid.ColumnDefinitions>
+                            <FontIcon Grid.Column="0" FontFamily="Segoe MDL2 Assets" Glyph="&#xE968;" FontSize="20"
+                                      VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                <TextBlock Text="网络" Foreground="{StaticResource TextPrimaryBrush}" />
+                                <TextBlock x:Name="NetworkDesc" FontSize="12" MaxLines="1" TextTrimming="CharacterEllipsis"
+                                           Foreground="{StaticResource TextSecondaryBrush}" Text="代理与回调端口" />
+                            </StackPanel>
+                            <Grid Grid.Column="2" ColumnSpacing="12" VerticalAlignment="Center">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <!-- 输入框**占满**该列（旧版固定 120 宽 + 开关 44 挤在 176 列里 ⇒ 只看得见 `http://127`，
+                                     且宽度不足时控件互相挤动 = 用户报的"点了乱跳按钮"） -->
+                                <TextBox x:Name="ProxyBox" Grid.Column="0" HorizontalAlignment="Stretch"
+                                         PlaceholderText="http://127.0.0.1:7890" LostFocus="OnProxyLostFocus" />
+                                <ToggleSwitch x:Name="ProxySwitch" Grid.Column="1" OnContent="" OffContent="" MinWidth="44"
+                                              Toggled="OnProxyToggled" />
+                            </Grid>
+                        </Grid>
+
+                        <Border Height="1" Background="{StaticResource ControlBorderBrush}" />
+
+                        <!-- 6b 浏览器标识（User-Agent）：用户点名「ua 支持自定义」；留空 = 默认 -->
+                        <Grid x:Name="UaRow" MinHeight="64" Padding="16,0" ColumnSpacing="16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="40" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="320" />
+                            </Grid.ColumnDefinitions>
+                            <FontIcon Grid.Column="0" FontFamily="Segoe MDL2 Assets" Glyph="&#xE70F;" FontSize="20"
+                                      VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                <TextBlock Text="浏览器标识" Foreground="{StaticResource TextPrimaryBrush}" />
+                                <TextBlock FontSize="12" MaxLines="1" TextTrimming="CharacterEllipsis"
+                                           Foreground="{StaticResource TextSecondaryBrush}" Text="留空使用默认值" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2" VerticalAlignment="Center" Spacing="4">
+                                <TextBox x:Name="UaBox" HorizontalAlignment="Stretch"
+                                         PlaceholderText="自定义 User-Agent（留空 = 默认）" LostFocus="OnUaLostFocus" />
+                                <TextBlock x:Name="UaHint" FontSize="12" MinHeight="16" MaxLines="1"
+                                           TextTrimming="CharacterEllipsis"
+                                           Foreground="{StaticResource TextSecondaryBrush}" />
+                            </StackPanel>
+                        </Grid>
+
+                        <Border Height="1" Background="{StaticResource ControlBorderBrush}" />
+                        <!-- 7 关闭时最小化到托盘 -->
+                        <Grid x:Name="TrayRow" MinHeight="56" Padding="16,0" ColumnSpacing="16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="40" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="320" />
+                            </Grid.ColumnDefinitions>
+                            <FontIcon Grid.Column="0" FontFamily="Segoe MDL2 Assets" Glyph="&#xE7E8;" FontSize="20"
+                                      VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                <TextBlock Text="关闭时最小化到托盘" Foreground="{StaticResource TextPrimaryBrush}" />
+                                <TextBlock FontSize="12" MaxLines="1" TextTrimming="CharacterEllipsis"
+                                           Foreground="{StaticResource TextSecondaryBrush}" Text="关窗不退出，留在托盘" />
+                            </StackPanel>
+                            <ToggleSwitch x:Name="TraySwitch" Grid.Column="2" HorizontalAlignment="Right"
+                                          VerticalAlignment="Center" Toggled="OnTrayToggled" />
+                        </Grid>
+
+                        <Border Height="1" Background="{StaticResource ControlBorderBrush}" />
+
+                        <!-- 8 重置设置 -->
+                        <Grid x:Name="ResetRow" MinHeight="56" Padding="16,0" ColumnSpacing="16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="40" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="320" />
+                            </Grid.ColumnDefinitions>
+                            <FontIcon Grid.Column="0" FontFamily="Segoe MDL2 Assets" Glyph="&#xE7A7;" FontSize="20"
+                                      VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                <TextBlock Text="重置设置" Foreground="{StaticResource TextPrimaryBrush}" />
+                                <TextBlock FontSize="12" MaxLines="1" TextTrimming="CharacterEllipsis"
+                                           Foreground="{StaticResource TextSecondaryBrush}" Text="恢复默认设置" />
+                            </StackPanel>
+                            <Button x:Name="ResetButton" Grid.Column="2" Content="恢复默认" Width="176"
+                                    HorizontalAlignment="Right" VerticalAlignment="Center" Click="OnResetClick" />
+                        </Grid>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- §9.3②：状态行只在真有话要说时出现（默认折叠，不再把「已加载」这类调试文案当界面元素）
+             🔴 单行 + 截断：多行折行会把整页往下推（用户报障「点了乱跳」的成因之一） -->
+        <TextBlock x:Name="StatusText" Grid.Row="2" FontSize="12" Margin="0,10,0,0"
+                   MaxLines="1" TextTrimming="CharacterEllipsis"
+                   Foreground="{StaticResource TextSecondaryBrush}" />
+    </Grid>
+</Page>

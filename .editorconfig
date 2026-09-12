@@ -1,0 +1,118 @@
+# AI Player —— 统一代码风格（.editorconfig）
+# 依据：用户要求「所有代码风格统一，别出现奇怪冗余代码、无法维护、读不懂意思」。
+# 规则分两类：
+#   ① 本文件里的 = 可由 `dotnet format` 自动检查/修复的（风格面）
+#   ② `shell/docs/CODE_STANDARD.md` 里的 = 语义面（冗余/可读性/静默失败），由工装检索 + 人审
+# 门禁：`dotnet format <项目> --verify-no-changes --severity warn`（详 CODE_STANDARD.md §6）
+
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+[*.{cs,csx}]
+indent_size = 4
+max_line_length = 160
+
+[*.{csproj,props,targets}]
+indent_size = 2
+
+[*.{md,json,yml,yaml}]
+indent_size = 2
+
+[*.{xaml}]
+indent_size = 4
+
+# ---------------------------------------------------------------- C# 风格
+[*.cs]
+
+# using：System 优先、组内按字母序、不需要的必须删（IDE0005）
+dotnet_sort_system_directives_first = true
+dotnet_separate_import_directive_groups = false
+dotnet_diagnostic.IDE0005.severity = warning
+
+# 命名空间：一律 file-scoped（本项目现状即如此）
+csharp_style_namespace_declarations = file_scoped:error
+dotnet_diagnostic.IDE0161.severity = warning
+
+# var：类型在右侧显而易见时用 var；否则显式写出（避免"读不懂类型"）
+csharp_style_var_for_built_in_types = true:suggestion
+csharp_style_var_when_type_is_apparent = true:suggestion
+csharp_style_var_elsewhere = false:suggestion
+
+# 表达式体成员：短的单行成员可用
+csharp_style_expression_bodied_methods = when_on_single_line:suggestion
+csharp_style_expression_bodied_properties = true:suggestion
+csharp_style_expression_bodied_accessors = true:suggestion
+
+# 大括号：永远要有（禁止单行 if 无大括号 —— 这是"读不懂"的常见来源）
+csharp_prefer_braces = true:warning
+dotnet_diagnostic.IDE0011.severity = warning
+
+# this.：不用（除非消歧）
+dotnet_style_qualification_for_field = false:suggestion
+dotnet_style_qualification_for_property = false:suggestion
+dotnet_style_qualification_for_method = false:suggestion
+dotnet_style_qualification_for_event = false:suggestion
+
+# 语言关键字优先于 BCL 类型名（string 而非 String）
+dotnet_style_predefined_type_for_locals_parameters_members = true:suggestion
+dotnet_style_predefined_type_for_member_access = true:suggestion
+
+# 修饰符顺序与只读
+dotnet_style_require_accessibility_modifiers = for_non_interface_members:warning
+dotnet_style_readonly_field = true:suggestion
+csharp_prefer_static_local_function = true:suggestion
+
+# 模式匹配/空值检查：优先 is null / is not null（禁止 == null 混用两套写法）
+dotnet_style_prefer_is_null_check_over_reference_equality_method = true:warning
+
+# 未使用的成员/参数：提为 warning（冗余代码的主要来源）
+dotnet_diagnostic.IDE0051.severity = warning   # 未使用的私有成员
+dotnet_diagnostic.IDE0052.severity = warning   # 未读取的私有成员
+dotnet_diagnostic.IDE0060.severity = suggestion # 未使用的参数
+dotnet_diagnostic.IDE0039.severity = suggestion # 可用 lambda 替代的本地函数
+
+# 不可达代码 / 冗余
+dotnet_diagnostic.IDE0035.severity = warning   # 不可达代码
+dotnet_diagnostic.IDE0007.severity = suggestion
+dotnet_diagnostic.CS0162.severity = warning    # 检测到无法访问的代码
+dotnet_diagnostic.CS0164.severity = warning    # 控制流无法到达
+dotnet_diagnostic.CS0219.severity = warning    # 变量被赋值但从未使用
+dotnet_diagnostic.CS1717.severity = warning    # 成员隐藏继承成员
+
+# 异步：禁止 async 无 await（IDE0062/CS1998）
+dotnet_diagnostic.CS1998.severity = warning
+dotnet_diagnostic.IDE0062.severity = suggestion
+
+# 可空性：本项目尚未全量启用 nullable，先不作门禁，但显式写出意图
+csharp_style_throw_expression = true:suggestion
+csharp_style_conditional_delegate_call = true:suggestion
+
+# 未使用 using / 冗余限定
+dotnet_diagnostic.IDE0001.severity = suggestion
+dotnet_diagnostic.IDE0002.severity = suggestion
+dotnet_diagnostic.IDE0004.severity = warning    # 不必要的强制转换
+
+# 格式化细节（由 dotnet format 直接落）
+csharp_new_line_before_open_brace = all
+csharp_new_line_before_else = true
+csharp_new_line_before_catch = true
+csharp_new_line_before_finally = true
+csharp_indent_case_contents = true
+csharp_indent_switch_labels = true
+csharp_space_after_cast = false
+csharp_space_after_keywords_in_control_flow_statements = true
+csharp_space_between_method_declaration_parameter_list_parentheses = false
+csharp_space_between_method_call_parameter_list_parentheses = false
+csharp_preserve_single_line_statements = false
+csharp_preserve_single_line_blocks = true
+
+# ---------------------------------------------------------------- 缩进/换行（生成器产物除外）
+[*.{g.cs,g.i.cs,Designer.cs}]
+generated_code = true

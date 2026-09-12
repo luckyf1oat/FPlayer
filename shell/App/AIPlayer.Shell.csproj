@@ -1,0 +1,376 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    AIPlayer.Shell —— C# / WinUI 3 外壳（成品工程）。
+    属性依据（逐条可追）：
+      · TargetFramework        : DESIGN §2 D2 —— 必须 net9.0-windows10.0.22621.0（内核锁 net9，改低会 CS4036）
+      · RollForward=Major      : WORKSPACE.md §4.1 定案（本机无 9.x 运行时；统一 Major，禁 LatestMajor）
+      · WindowsAppSDKSelfContained : DESIGN §2 D2 —— 本机无 DDLM 包 + 内核 [ModuleInitializer] 从
+                                   AppContext.BaseDirectory 加载 Microsoft.WindowsAppRuntime.dll
+      · Platforms/PlatformTarget=x64 : WindowsAppSDKSelfContained 生效前提（reversed/DotNet/*.reconstructed.csproj:22-25）
+      · WindowsPackageType=None: 非打包（unpackaged）WinUI 3
+      · RuntimeIdentifier=win-x64 : 自包含与 self-contained 发布的前提
+    注意：本工程**不设** WindowsAppSdkAutoInitialize=false —— 外壳需要 bootstrap/URFW 自动初始化
+          （内核工程设 false 是因为它自带反编译出来的初始化器）。
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <AssemblyName>AIPlayer.Shell</AssemblyName>
+    <RootNamespace>AIPlayer.Shell</RootNamespace>
+
+    <TargetFramework>net9.0-windows10.0.22621.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
+
+    <Platforms>x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+
+    <UseWinUI>true</UseWinUI>
+    <WindowsPackageType>None</WindowsPackageType>
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <RollForward>Major</RollForward>
+
+    <Nullable>disable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <!--
+      自写 Main（便于挂 FirstChanceException / Resolving，见 Program.cs）。
+      ⚠️ 必须是**编译常量**而不是同名 MSBuild 属性：XamlCompiler 生成的 App.g.i.cs 里那段
+         Program/Main 被 `#if !DISABLE_XAML_GENERATED_MAIN` 包着，而 WindowsAppSDK 1.8.250906003
+         整包里根本没有 DISABLE_XAML_GENERATED_MAIN 这个属性名（已全包 grep 证实），
+         只设属性 = 常量未定义 = 生成 Main 仍然参与编译 ⇒ CS0101/CS0111 与 Program.cs 撞名。
+    -->
+    <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
+
+    <!--
+      ===== S1（t12 步骤 ④）：把内核反编译源码编进本工程 =====
+      AllowUnsafeBlocks：依据 reversed/MpvHost/AIPlayer.MpvHost.csproj:44（内核为 true）。
+      探针实测（v7，2026-09-11 21:35）：加上下面全部引用面 + 生成器移除时机后，
+      内核源码在本工程内 CS0102 = 0（不再与生成器产物撞成员）。
+    -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.250916003" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <PackageReference Include="FluentIcons.Common" Version="1.1.292" />
+    <PackageReference Include="FluentIcons.WinUI" Version="1.1.292" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 服务层（纯类库，无内核引用 —— DESIGN §2 D5 硬规则 S-1） -->
+    <ProjectReference Include="..\Services\Services.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      Richasy.WinUIKernel.Share：提供 App.xaml 里那 7 个转换器的类型
+      （namespace Richasy.WinUIKernel.Share.Converters）。
+      必须用 data/player 里的二进制而非 NuGet 同名包 —— 见 WORKSPACE.md §7.6：
+      NuGet 版缺少 .Converters/.Helpers 命名空间（会 CS0234）。
+    -->
+    <Reference Include="Richasy.WinUIKernel.Share">
+      <HintPath>$(MSBuildThisFileDirectory)..\..\data\player\Richasy.WinUIKernel.Share.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
+  <!--
+    ============================================================
+    ===== S1：内核源码 + 内核依赖面（t12 步骤 ④，2026-09-11）=====
+    ============================================================
+    权威来源 = reversed/MpvHost/AIPlayer.MpvHost.csproj（事实 72「M1 = 复刻内核工程」）。
+    本节的 31 条 PackageReference 抄自该文件 L51-85（去掉本工程已有的 4 条同名同版本），
+    7 条 Reference 抄自 L90-118（Richasy.WinUIKernel.Share 上面已有，故不重复）。
+    ⚠️ 这些包**不能**用 -p: 注入验证：PackageReference 注入不触发 NuGet restore（探针 v7 实测）。
+    -->
+  <ItemGroup Label="S1-Kernel-Packages">
+    <PackageReference Include="CommunityToolkit.Common" Version="8.2.1" ExcludeAssets="analyzers" />
+    <PackageReference Include="CommunityToolkit.HighPerformance" Version="8.4.0" ExcludeAssets="analyzers" />
+    <PackageReference Include="CommunityToolkit.WinUI.Animations" Version="8.2.250402" ExcludeAssets="analyzers" />
+    <PackageReference Include="CommunityToolkit.WinUI.Controls.Sizers" Version="8.2.250402" ExcludeAssets="analyzers" />
+    <PackageReference Include="CommunityToolkit.WinUI.Extensions" Version="8.2.250402" ExcludeAssets="analyzers" />
+    <PackageReference Include="CommunityToolkit.WinUI.Helpers" Version="8.2.250402" ExcludeAssets="analyzers" />
+    <PackageReference Include="CommunityToolkit.WinUI.Media" Version="8.2.250402" ExcludeAssets="analyzers" />
+    <PackageReference Include="CommunityToolkit.WinUI.Triggers" Version="8.2.250402" ExcludeAssets="analyzers" />
+    <PackageReference Include="FluentResults" Version="3.16.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.0-rc.1.25451.107" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.Abstractions" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.FileProviders.Abstractions" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0-rc.1.25451.107" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Primitives" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Graphics.Win2D" Version="1.3.2" />
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3179.45" />
+    <PackageReference Include="Microsoft.Win32.SystemEvents" Version="9.0.2" />
+    <PackageReference Include="Microsoft.WindowsAppSDK.AI" Version="1.8.38" />
+    <PackageReference Include="Microsoft.WindowsAppSDK.ML" Version="1.8.2091" />
+    <PackageReference Include="Serilog" Version="4.2.1-dev-02352" />
+    <PackageReference Include="Serilog.Extensions.Logging" Version="9.0.1" />
+    <PackageReference Include="Serilog.Sinks.File" Version="7.0.0-dev-02301" />
+    <PackageReference Include="System.Diagnostics.DiagnosticSource" Version="10.0.0-rc.1.25451.107" />
+    <PackageReference Include="System.Drawing.Common" Version="9.0.2" />
+    <PackageReference Include="Win32.NativeWindow" Version="1.1.0" />
+    <PackageReference Include="WinUIEx" Version="2.5.1" />
+  </ItemGroup>
+
+  <ItemGroup Label="S1-Kernel-Binaries">
+    <Reference Include="Danmaku.Legacy">
+      <HintPath>$(MSBuildThisFileDirectory)..\..\data\player\Danmaku.Legacy.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="Danmaku.Share">
+      <HintPath>$(MSBuildThisFileDirectory)..\..\data\player\Danmaku.Share.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="Richasy.MpvKernel">
+      <HintPath>$(MSBuildThisFileDirectory)..\..\data\player\Richasy.MpvKernel.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="Richasy.MpvKernel.Core">
+      <HintPath>$(MSBuildThisFileDirectory)..\..\data\player\Richasy.MpvKernel.Core.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="Richasy.MpvKernel.WinUI">
+      <HintPath>$(MSBuildThisFileDirectory)..\..\data\player\Richasy.MpvKernel.WinUI.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="RichasyKernel.Core">
+      <HintPath>$(MSBuildThisFileDirectory)..\..\data\player\RichasyKernel.Core.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="RichasyKernel.Abstractions">
+      <HintPath>$(MSBuildThisFileDirectory)..\..\data\player\RichasyKernel.Abstractions.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
+  <!--
+    ===== S1-Kernel-Xbf：内核 XAML 资源回填（2026-09-11 实测闭环）=====
+    为什么必须回填：内核反编译产物 **0 个 .xaml**，但其生成代码里有 9 处
+      `Application.LoadComponent(this, new Uri("ms-appx:///<path>.xaml"), Application)`
+    （grep `ms-appx:///` 全量命中）。不回填 ⇒ 运行时 XamlParseException，内核 UI 无法实例化
+    （实测：CONTROL-OK ms-appx:///MainWindow.xaml / TARGET-FAIL ms-appx:///Controls/PlayerOverlay.xaml）。
+    载荷来源：原装 PRI `data\player\AIPlayer.MpvHost.pri` 内**内嵌**着这些 XBF
+    （MRT 实测 Files/Controls/PlayerOverlay.xbf = 21,885 B；`data\player` 下无 loose .xbf）。
+    生成方式（可复现）：设 SHELL_XBF_EXTRACT=<目标目录> 启动外壳一次即回填全部 9 个并逐条打日志
+    （含字节数与 sha256 前 16 位）；本目录的 7 个文件即由该命令产出，逐条指纹见
+    shell/docs/XBF_BACKFILL.md。
+    ⚠️ 机制要点（实测）：**事后往输出目录丢 .xbf 无效**（ms-appx 仍解析不到），
+       必须作为工程项在**构建时**落进输出目录，才会被 MakePri 索引进 AIPlayer.Shell.pri
+       —— 对照：外壳自己的 Files/MainWindow.xbf 能解析成 `<输出目录>\MainWindow.xbf` 路径。
+    ⚠️ 只回填 7 个：`App.xaml` / `MainWindow.xaml` 与外壳自带 XAML **同名**，
+       直接覆盖会让内核的 WinUISample.App / WinUISample.MainWindow 加载到外壳那份
+       （x:Class 根类型不匹配）⇒ 该 2 个仍在 KernelXbf\_hold\ 内保留为证据、**不进本工程**。
+  -->
+  <ItemGroup Label="S1-Kernel-Xbf">
+    <!--
+      直接引用 `data\player` 下的 loose `.xbf`（2026-09-11 实测：该目录**递归** 9 个 ——
+      顶层 `App.xbf`/`MainWindow.xbf`，`Controls\` 6 + `Pages\` 1）。
+      我先前报「data\player 下无 loose .xbf」是**只看了顶层**的漏检，已按实测更正；
+      且与我早先从原装 PRI 抽出的那 7 个**逐字节同哈希（7/7）** ⇒ 两通道互证、**无需抽 PRI**。
+      ⇒ 故**不再在仓库里存副本**（原 `KernelXbf\**\*.xbf` 段已撤），改为直接源引用。
+      ⚠️ `Link` **不要**写 `Files\` 前缀：`Files/` 是 PRI 索引器给 `Content` 项加的，不是路径的一部分
+         （自证：`MRT Files/MainWindow.xbf = FOUND …\win-x64\MainWindow.xbf` 而加载侧写 `ms-appx:///MainWindow.xaml`）。
+      ⚠️ **不**纳入 `App.xbf` / `MainWindow.xbf`：与外壳同名资源在 `Files/` 下撞名（`Spike.csproj:101` 原话）。
+    -->
+    <Content Include="$(MSBuildThisFileDirectory)..\..\data\player\Controls\*.xbf"
+             Link="Controls\%(Filename)%(Extension)"
+             CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="$(MSBuildThisFileDirectory)..\..\data\player\Pages\*.xbf"
+             Link="Pages\%(Filename)%(Extension)"
+             CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup Label="S1-Kernel-Sources">    <!--
+      排除项逐条有据（内核 csproj L28 的职责 + 本工程不能重复的入口）：
+        obj/bin/_build      : 构建产物
+        Program.cs          : 内核自有入口，与外层 Program.cs 撞 Main。**必须通配**
+                              （2026-09-11 实测：入口点是 reversed\MpvHost\WinUISample\Program.cs，
+                                根目录下并无 Program.cs ⇒ 只写根路径的排除项是漏的，曾报 CS0017）
+        Properties\**       : 程序集特性（版本/标题）重复 ⇒ CS0579（探针 v5 实测 16 条 → 0）
+        两个 AutoInitialize 目录 : 见下方 S1-AutoInit 段说明（内核 csproj L29-31 逐字同因）
+      ===== t110（2026-09-12，用户决定「内核修复要并入外壳」）=====
+      编译源根已从 reversed\MpvHost\** 改为 kernel\src\**（同一套 Exclude 逐条保留，仅换根）。
+      为什么（**2026-09-12 07:3x 更正**：原文写「外壳走 M1 进程内复用」，与当刻实测不符）：
+        并入的**真实作用** = 让 fork 代码成为**外壳产物的一部分**，使 kernel/ 分支自 t38 以来的改动
+        （t69/t70/t71/t79/K1-K11…）**有通路进入用户产物**（并入前实测：shell/**/*.csproj 对 kernel/src 命中 0）。
+        ⚠️ 但**当刻播放走 M3 进程外**，并入本身**不改变**播放行为：`KernelLauncher` 默认起
+        `data\player\AIPlayer.MpvHost.exe`（**原版内核**）；进程内入口 `KernelBridge.GetAppViewModel()`
+        （定义在 `KernelBridge.cs`）**全仓 0 处调用**，而三个调用点**全部是 `KernelLauncher.Launch`**
+        （`DetailPage.xaml.cs` / `LibraryPage.xaml.cs` / `AggregatePlayback.cs`）。
+        ⇒ 要真正到达播放面需两条一起落地：**产物树**（t114：`player\` = 参照树 + fork dll）+
+        **产物相对优先启动**（t115）；临时替代 = `SHELL_KERNEL_EXE` 指向 fork 产物 —— t114 实测：
+        那样跑时内核**自己的**日志出现只有 fork 才打的 `KERNEL-FORK rev=1` 与 `source=override`，
+        反控指回原版 exe 时这两条都消失。
+      有意**不并** fork 的 csproj 配置：EnforceCodeStyleInBuild（会把 101 条基线警告变成外壳构建门槛）/
+      BaseOutputPath / InformationalVersion(1.0.0-fork-rev1，外壳身份保持 AIPlayer.Shell)。
+      🔁 **回滚要分两件事**（2026-09-12 更正；旧写「一步回滚＝把 8 处反向替换」**不成立**）：
+        ① **行为回退**（把编译输入换回基线）：本节 8 处代码位（`<Compile Include>` ×1 + 七条 `Exclude`）
+           里的 kernel\src\ 换回 reversed\MpvHost\ ⇒ 编译输入集合回到并入前；随后
+           `dotnet build shell/App/AIPlayer.Shell.csproj -c Debug` 应 EXIT=0 并起窗正常。
+        ② **身份级回滚**（要「回到那一代文件」）：`git checkout a60188a^ <路径分隔符> shell/App/AIPlayer.Shell.csproj`
+           ⇒ blob `47c51f7fadc6` / 21,205 B / **LF** / sha256_12 `06AFC85C2E5F`。
+           （`<路径分隔符>` = 命令行里那个由两个短横组成的标准分隔符；**本注释块内不能直写** ——
+             XML 注释语法禁止连续两个短横，直写会让本工程文件解析失败、构建在 0.06 s 内报 1 个错误。）
+        ⚠️ **全文替换全部 10 处 kernel\src\ 不是回滚动作**：那样得到的是中间形态
+           （实测 24,631 B / sha256_12 `32A59E0EE015`，≠ 21,205 B / `06AFC85C2E5F`，**身份不等价**）。
+    -->
+    <Compile Include="$(MSBuildThisFileDirectory)..\..\kernel\src\**\*.cs"
+             Exclude="$(MSBuildThisFileDirectory)..\..\kernel\src\obj\**;$(MSBuildThisFileDirectory)..\..\kernel\src\bin\**;$(MSBuildThisFileDirectory)..\..\kernel\src\_build\**;$(MSBuildThisFileDirectory)..\..\kernel\src\**\Program.cs;$(MSBuildThisFileDirectory)..\..\kernel\src\Properties\**;$(MSBuildThisFileDirectory)..\..\kernel\src\Microsoft.Windows.ApplicationModel.WindowsAppRuntime.Common\**;$(MSBuildThisFileDirectory)..\..\kernel\src\Microsoft.Windows.Foundation.UndockedRegFreeWinRTCS\**" />
+
+    <!--
+      ===== S1-AutoInit：Windows App SDK 自动初始化器去重（2026-09-11 实测）=====
+      现象：落 S1 后 CS0101 ×3 / CS0111 ×3，全部指向
+            microsoft.windowsappsdk.foundation\1.8.250906002\include\WindowsAppRuntimeAutoInitializer.cs
+            与 UndockedRegFreeWinRT-AutoInitializer.cs（namespace ...Common.AutoInitialize 已包含定义）。
+      根因：内核 csproj L29-31 已写明 ——「反编译产物已含
+            Microsoft.Windows.ApplicationModel.WindowsAppRuntime.Common.AutoInitialize」，
+            故内核设 <WindowsAppSdkAutoInitialize>false</WindowsAppSdkAutoInitialize>。
+            M1 把内核源码编进本工程后，**两边各有一份同名同命名空间的初始化器**。
+      处置：保留**包官方那份**（本工程既有 4 包时代已在用、且外壳已实际启动验证过），
+            排除内核侧那 3 个反编译副本。它们与包内 include\*.cs 是同一份内容的副本：
+              Microsoft.Windows.ApplicationModel.WindowsAppRuntime.Common\AutoInitialize.cs
+              Microsoft.Windows.Foundation.UndockedRegFreeWinRTCS\{AutoInitialize.cs, NativeMethods.cs}
+            glob 实测这两个目录**只含这 3 个文件**（无其它内核代码）⇒ 整目录排除不误伤。
+      等价性：内核那份是 [ModuleInitializer] → URFW WindowsAppRuntime_EnsureIsLoaded()；
+            包那份走 WindowsAppRuntimeAutoInitializer（同样的 unpackaged 引导）。
+            全量 grep 确认内核其余源码**无任何**对这两个类型的引用 ⇒ 排除后不会 CS0246。
+            ⚠️ 若后续出现「外壳启动即崩、找不到 WindowsAppRuntime」，第一嫌疑就是这里，
+            处置退路 = 改设 <WindowsAppSdkAutoInitialize>false</WindowsAppSdkAutoInitialize>（走内核那份）。
+    -->
+  </ItemGroup>
+
+  <!--
+    ===== 生成器移除（CS0102 的根因处置）=====
+    内核反编译源码里**已经包含**生成器产物（RelayCommand/ObservableProperty/CsWinRT ABI 投影），
+    再跑一遍生成器 ⇒ 同成员重复 ⇒ CS0102/CS0111/CS0101（内核原工程撞 139 条 CS0111）。
+    关键：**时机**。@(Analyzer) 在 ResolvePackageAssets 之后才填满，而本工程带 .xaml，
+    WinUI XamlCompiler 会在 MarkupCompilePass1 阶段自己跑一次生成器并把产物写进
+    obj\…\intermediatexaml\ ⇒ 只在 CoreCompile 前移除**太晚**（探针 v5：CS0102 恒 180）。
+    两处都挂 ⇒ CS0102 = 0（探针 v6/v7 实测）。
+    安全性依据：本工程与 Services 全量 grep 显示 [ObservableProperty]/[RelayCommand] 零使用
+    （ShellState 手工实现 INotifyPropertyChanged）⇒ 移除生成器不影响外壳自有代码。
+  -->
+  <Target Name="RemoveSourceGeneratorsBeforeXaml" BeforeTargets="MarkupCompilePass1">
+    <ItemGroup>
+      <Analyzer Remove="@(Analyzer)"
+                Condition="$([System.String]::Copy('%(Analyzer.Filename)').Contains('SourceGenerator'))" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="RemoveSourceGeneratorsBeforeCoreCompile" BeforeTargets="CoreCompile">
+    <ItemGroup>
+      <Analyzer Remove="@(Analyzer)"
+                Condition="$([System.String]::Copy('%(Analyzer.Filename)').Contains('SourceGenerator'))" />
+    </ItemGroup>
+  </Target>
+
+  <!--
+    ===== 补链：把内核的 XamlTypeInfo 串进生成的元数据提供器列表（2026-09-11 运行时实测必需）=====
+    问题：外壳的 XamlCompiler 只为「其它程序集」的 XamlMetaDataProvider 生成串接项
+          （obj\…\XamlTypeInfo.g.cs L3440-3459 的 5 项），而内核的
+          WinUISample.AIPlayer_MpvHost_XamlTypeInfo 与外壳**同处一个程序集** ⇒ 不被列出。
+          后果实测：TARGET-FAIL XamlParseException，HRESULT 0x802B000A；同一时刻
+          kernel GetXamlTypeByName("WinUISample.Controls.PlayerOverlayBase") 却能返回 XamlUserType。
+    处置：构建期在生成的 XamlTypeInfo.g.cs 里注入一处串接（幂等、锚点缺失即报错）。
+          ⚠️ 挂 BeforeTargets="CoreCompile"（生成文件在该阶段已存在、且尚未编译）。
+    ⚠️ 若将来内核被拆成独立程序集（那时生成器会自动串接），本目标连同
+       tools\chain-kernel-xamltinfo.ps1、KernelHost\KernelXamlMetaDataProvider.cs 应一并删除。
+  -->
+  <Target Name="ChainKernelXamlMetadataProvider" BeforeTargets="CoreCompile">
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\tools\chain-kernel-xamltinfo.ps1&quot; -Target &quot;$(IntermediateOutputPath)XamlTypeInfo.g.cs&quot;" />
+  </Target>
+
+  <ItemGroup>
+    <!-- 图标字体：必须保留 FluentIcons.WinUI\Assets\ 层级才能被索引进 pri 成
+         ms-resource://AIPlayer.Shell/Files/FluentIcons.WinUI/Assets/*.ttf -->
+    <Content Include="$(MSBuildThisFileDirectory)..\..\data\player\FluentIcons.WinUI\Assets\*.ttf"
+             Link="FluentIcons.WinUI\Assets\%(Filename)%(Extension)"
+             CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!--
+    ===== t110 追加 ②（2026-09-12，Captain ③）：Assets\** 进输出与发布 =====
+    症状（用户日志实测）：左栏服务器图标缺失 `SERVERS icon-missing` ×6；
+      发布产物 `dist\AIPlayer\` 下**没有** `Assets\` 目录（2026-09-12 06:46:55 实测：`dist\AIPlayer\Assets` 不存在）。
+    根因（MSBuild 求值实测，06:47:46 / 06:48:47，`dotnet msbuild -getItem:Content`）：
+      这三张 PNG（`Assets\Icons\emby.png` = 2,094 B / sha256_12 3B716E0B523B、另两张离线预览）
+      **只**由 SDK/WinUI 的**默认项通配**挂进 `@(Content)`，其
+      `CopyToOutputDirectory` 与 `CopyToPublishDirectory` **两处元数据均为空**
+      ⇒ 既不进 `$(TargetDir)` 也不进 `$(PublishDir)`。
+      判据：`Assets\Icons\emby.png` 在 `@(Content)` 里是 **2 个实例、皆无拷贝元数据**；
+            `-p:EnableDefaultItems=false` ⇒ 实例数 0（`-p:EnableDefaultContentItems=false` ⇒ 1）⇒ 确系默认项来源。
+    为什么用 `Update` 而不是 `Include`：默认真身已在，再 `Include` 会叠出第 3 个同身份实例（同目标路径），
+      有触发 MakePri / 复制重复项告警之虞；`Update` 只补元数据、**不新增项**
+      （因此也不会把 evidence 之类重新拉进构建图）。
+    发布侧依据的是**同文件实测先例**：上面「图标字体」那段的 FluentIcons `Content` 只写 `CopyToOutputDirectory="PreserveNewest"`
+      （`CopyToPublishDirectory` 同样为空），而它的 ttf 确实出现在 `dist\AIPlayer\FluentIcons.WinUI\Assets\`
+      ⇒ MSBuild 的 CopyToPublishDirectory 缺省回落到 CopyToOutputDirectory。此处仍两处显式写死，便于复核。
+    判据（反控，证据 kernel/evidence/kernel-assets-publish-copy.txt）：
+      改前同参数 publish 到临时目录 ⇒ `<发布目录>\Assets\Icons\emby.png` **不存在**；
+      改后同参数 publish 到临时目录 ⇒ 该文件**存在**且与源**逐字节相同**（字节数 + sha256_12）。
+    ⚠️ 我未触碰 `dist\AIPlayer`（发布是 Captain 的出口）；上条反控在临时目录做，刷新 dist 由 Captain 执行。
+    🔁 回退：删掉下方这个 ItemGroup 即可（改前 csproj = 22,069 B / sha256_12 1358E6C4C02D）。
+  -->
+  <ItemGroup Label="t110-assets-copy">
+    <Content Update="Assets\**\*"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!--
+    ===== 内核依赖闭包：接进构建 / 发布两个出口（t8 第 5 项）=====
+    依据 shell/docs/KERNEL_DEPS.md §6.7（模板）+ §6.6（手工复制会被下一次构建冲掉）。
+    脚本本体是本目录下的 kernel-deps-copy.ps1（由 KERNEL_DEPS.md §5 逐字提取，UTF-8 with BOM）。
+    ⚠️ publish 的输出目录 ≠ $(TargetDir)：只挂 AfterTargets="Build" 时 publish 侧仍会缺件（P-1）。
+    🔻 t136：**输出根上"哪些内核件该存在"全部由该脚本决定**（本工程没有针对这两件的
+       `Content`/`None` 复制项 ⇒ 无需在此处删任何 Item）。脚本内 `$excludeFromClosure` /
+       `$mustCopyExplicit` 两处已显式排除「内核自身镜像 `AIPlayer.MpvHost.dll`」与「`libmpv-2.dll`」：
+       两者的解析链都是 `env > <BaseDir>\player\ > legacy`，**输出根不在链上**；根上保留原版副本
+       只会制造"顶层同名件到底跑哪一份"的歧义（t136 起因）。**不要**改成"发布后手删"——下次 publish 会再来。
+  -->
+  <!--
+    ⚠️ 路径后面那个 `.` 不是手滑：MSBuild 的 `$(TargetDir)` / `$(PublishDir)` **以反斜杠结尾**，
+       而命令行里 `-TargetDir "…\win-x64\"` 的 `\"` 会被 PowerShell 当成**转义引号** ⇒ 引号不配对、
+       参数解析崩掉（症状：MSB3073 exit 1，脚本里报语法错）。追加一个 `.` 即可让引号前不再是反斜杠：
+       `"…\win-x64\."` 与 `"…\win-x64\"` 是同一目录。
+  -->
+  <Target Name="CopyKernelDepsToOutput" AfterTargets="Build"
+          Condition="Exists('$(TargetDir)$(AssemblyName).dll')">
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\kernel-deps-copy.ps1&quot; -TargetDir &quot;$(TargetDir).&quot;" />
+  </Target>
+
+  <Target Name="CopyKernelDepsToPublish" AfterTargets="Publish">
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\kernel-deps-copy.ps1&quot; -TargetDir &quot;$(PublishDir).&quot;" />
+  </Target>
+
+  <!--
+    ===== P-2：本工程自己的 .pri 是「构建生成」的，不会被带到 publish 目录 =====
+    没有它，Application.LoadComponent("ms-appx:///…") 在 publish 形态下解析不到资源。
+  -->
+  <Target Name="CopyAppPriToPublish" AfterTargets="Publish">
+    <Copy SourceFiles="$(TargetDir)$(AssemblyName).pri"
+          DestinationFolder="$(PublishDir)"
+          SkipUnchangedFiles="true"
+          Condition="Exists('$(TargetDir)$(AssemblyName).pri')" />
+  </Target>
+  <!--
+    ===== 证据产物不进构建（2026-09-11 Captain 修；根因见 WORKSPACE 事实 148）=====
+    为什么：WinUI 的**默认 Content 通配**会把 `Features\**\evidence\*.png` 当作内容文件拷进输出目录
+            （实测单张 ≤1.5 MB、t28 一卡累计 ~4.4 MB）；而**正在写入**的文件会让**所有人的构建**
+            报 `MSB3030 无法复制文件 … 找不到该文件`（services 23:30:07 实测，全队被卡）。
+    ⇒ 证据属于「测试产物」，一律排除出构建图；要留档就提交进 git，**不要进 csproj 的 Content**。
+  -->
+  <ItemGroup>
+    <Content Remove="**\evidence\**" />
+    <None Remove="**\evidence\**" />
+    <EmbeddedResource Remove="**\evidence\**" />
+    <PRIResource Remove="**\evidence\**" />
+  </ItemGroup>
+
+</Project>

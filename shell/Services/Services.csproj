@@ -1,0 +1,41 @@
+<!--
+  AIPlayer.Shell.Services —— 服务层类库（t7 / t14）。
+  依据：shell/docs/DESIGN.md §2 D1（工程名以 t7 的 verify 字段为准）、§2 D2（TFM/平台）、附录 B（代码风格）。
+
+  说明（DESIGN §2 D2「按工程类型必设项矩阵」）：
+    - 要：TargetFramework=net9.0-windows10.0.22621.0、Platforms/PlatformTarget=x64；
+    - 声明即可（对类库是 no-op，见下方属性处注释）：<RollForward>Major</RollForward>（全队四个 csproj 统一写）；
+    - **不要**：<UseWinUI> / <WindowsPackageType> / <WindowsAppSDKSelfContained>（本工程不加载内核程序集、无 WinUI 依赖）；
+    - 运行证据一律从 Spike / App / Tests 出，不从类库出。
+  TFM 必须与内核一致（net9.0-windows10.0.22621.0）：kernel 锁 net9（reversed/MpvHost/AIPlayer.MpvHost.csproj:5-6,19），
+  且 net8 工程 ProjectReference net9 工程会 NU1201（实测 exit 1）。
+-->
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <AssemblyName>AIPlayer.Shell.Services</AssemblyName>
+    <RootNamespace>AIPlayer.Shell.Services</RootNamespace>
+    <OutputType>Library</OutputType>
+    <TargetFramework>net9.0-windows10.0.22621.0</TargetFramework>
+    <Platforms>x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+    <!--
+      RollForward：按 DESIGN §2 D2「按工程类型必设项矩阵」作**统一声明**（captain 要求四个 csproj 一致）。
+      对类库是 **no-op**：类库不产出 *.runtimeconfig.json（verifier 已实测），该属性只在**入口程序集**生效。
+      写上无代价、保证全队一致；运行证据仍一律从 Spike / App / Tests 出，不从类库出。
+    -->
+    <RollForward>Major</RollForward>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <EnableDefaultCompileItems>true</EnableDefaultCompileItems>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- DPAPI（CryptProtectData/CryptUnprotectData）的托管封装：等价 Dart 侧 dart:ffi 直调 Crypt32。 -->
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="9.0.0" />
+  </ItemGroup>
+
+</Project>

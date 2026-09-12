@@ -1,0 +1,47 @@
+# 统一行尾：源码与脚本一律 LF（避免跨平台 diff 噪声与 CRLF 警告）
+# 依据：本仓库的 shell/ 工程与 reversed/ 反编译源码均按 LF 维护
+* text=auto eol=lf
+
+*.cs      text eol=lf
+*.dart    text eol=lf
+*.py      text eol=lf
+*.sh      text eol=lf
+*.md      text eol=lf
+*.txt     text eol=lf
+*.json    text eol=lf
+*.yaml    text eol=lf
+*.yml     text eol=lf
+*.xaml    text eol=lf
+*.csproj  text eol=lf
+*.props   text eol=lf
+*.targets text eol=lf
+.gitignore text eol=lf
+.gitattributes text eol=lf
+
+# Windows 专用脚本保留 CRLF
+*.bat     text eol=crlf
+*.cmd     text eol=crlf
+*.ps1     text eol=crlf
+
+# 二进制（明确声明，避免 git 试图做文本 diff/转换）
+*.dll     binary
+*.exe     binary
+*.pdb     binary
+*.so      binary
+*.ico     binary
+*.png     binary
+*.jpg     binary
+*.pri     binary
+*.xbf     binary
+*.mui     binary
+*.winmd   binary
+*.ttf     binary
+*.otf     binary
+
+# 证据产物：字节保真，禁止行尾归一化
+# 依据：项目纪律要求证据文件「sha12 可复现」。evidence/ 下的产物是**原始机器输出**
+#       或截屏，其身份由 sha256_12 认定。若按 *.txt text eol=lf 归一化，则一次
+#       checkout 就会把 CRLF 改成 LF ⇒ 工作区字节与已入账的 sha12 不再相等，
+#       「已验证」会静默变成假。实测反控见 WORKSPACE.md 事实 152。
+# 影响范围仅 **/evidence/**，源码（*.cs/*.xaml/*.md 等）仍按 LF 维护。
+**/evidence/** -text

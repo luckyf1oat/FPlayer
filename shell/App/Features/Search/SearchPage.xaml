@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ===== 搜索 / 聚合搜索屏（t28 / U-B）=====
+  规格 = shell/docs/UI_SPEC_SHELL.md §7（§7.2 入口与交互 / §7.3 结果面板 / §7.4 芯片 / §7.5 单选 / §7.6 聚合行为）
+  实测值 = shell/docs/HILLSLITE_UI_ANALYSIS.md §4.4（芯片行 y 56..88 高 33、芯片间距 8–9、面板自 y≈97 起、
+           海报 166×249、列间距 24、卡片角标）
+
+  令牌纪律：颜色/尺寸**只用 Theme/Tokens.xaml 里已有的键**。
+  唯一例外 = 海报占位底 `#333333`（HILLSLITE §4.5 实测：无封面用 `#333333` 占位卡）；
+  Tokens.xaml 里没有这个键 ⇒ 这里先用字面值并标出处，已请 ui 追加 `PlaceholderBgColor` 令牌（见任务报告）。
+-->
+<Page
+    x:Class="AIPlayer.Shell.Features.Search.SearchPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Background="{StaticResource PageBgBrush}">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- ===== §7.3 芯片行：高 33 / 首芯片左沿 = 内容左沿 + 8 / 芯片间距 8–9 ===== -->
+        <ScrollViewer Grid.Row="0" Margin="8,6,8,8"
+                      HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+            <StackPanel x:Name="ChipRow" Orientation="Horizontal" Spacing="9" />
+        </ScrollViewer>
+
+        <!-- ===== §7.3 结果面板：底 SurfaceBg、左沿与侧栏齐平、无圆角无内缩、内边距 16 ===== -->
+        <Grid Grid.Row="1" Background="{StaticResource SurfaceBgBrush}" Padding="16,12,16,16">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <!-- 摘要行：三个数各自指名（§7.6 末行红线：不得写"三数一致"）+ 失败源红字（§7.3 / §1 ServerFail） -->
+            <StackPanel x:Name="SummaryRow" Grid.Row="0" Spacing="4" Margin="0,0,0,12" Visibility="Collapsed">
+                <TextBlock x:Name="SummaryCounts" FontSize="13" TextWrapping="Wrap"
+                           Foreground="{StaticResource TextSecondaryBrush}" />
+                <TextBlock x:Name="SummaryFailed" FontSize="13" TextWrapping="Wrap" Visibility="Collapsed"
+                           Foreground="{StaticResource ServerFailBrush}" />
+            </StackPanel>
+
+            <Grid Grid.Row="1">
+                <!-- 结果网格：海报 166×249、列间距 24（ItemsWrapGrid 的 ItemWidth 已含间距） -->
+                <GridView x:Name="ResultsGrid" Visibility="Collapsed"
+                          SelectionMode="None" IsItemClickEnabled="True" ItemClick="OnCardClick"
+                          ScrollViewer.HorizontalScrollMode="Disabled" Padding="0">
+                    <GridView.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <ItemsWrapGrid Orientation="Horizontal" ItemWidth="190" ItemHeight="300" />
+                        </ItemsPanelTemplate>
+                    </GridView.ItemsPanel>
+                    <GridView.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Width="166" Spacing="6">
+                                <Grid Width="166" Height="249" CornerRadius="12">
+                                    <!-- 占位底 = 令牌 PlaceholderBgBrush（HILLSLITE §4.5 实测 #333333；ui 已按本卡请求加入 Tokens.xaml） -->
+                                    <Border Background="{StaticResource PlaceholderBgBrush}" CornerRadius="12" />
+                                    <Image Source="{Binding Image}" Stretch="UniformToFill"
+                                           ImageOpened="OnCardImageOpened" ImageFailed="OnCardImageFailed" />
+                                    <!-- 角标：紫底圆形（§7.3 未看集数 / ✓；§7.6 N 源） -->
+                                    <Border HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,6,0"
+                                            MinWidth="22" Height="22" CornerRadius="11"
+                                            Background="{StaticResource AccentBrush}"
+                                            Visibility="{Binding BadgeVisibility}">
+                                        <TextBlock Text="{Binding BadgeText}" FontSize="12" Margin="6,0"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                   Foreground="#FF202020" />
+                                    </Border>
+                                </Grid>
+                                <TextBlock Text="{Binding Title}" FontSize="14" MaxLines="1"
+                                           TextTrimming="CharacterEllipsis"
+                                           Foreground="{StaticResource TextPrimaryBrush}" />
+                                <TextBlock Text="{Binding Subtitle}" FontSize="12" MaxLines="1"
+                                           TextTrimming="CharacterEllipsis"
+                                           Foreground="{StaticResource TextSecondaryBrush}" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </GridView.ItemTemplate>
+                </GridView>
+
+                <!-- 空查询 = 搜索历史（§7.2；不发网络请求） -->
+                <Grid x:Name="HistoryPanel" Visibility="Collapsed">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="12" Margin="0,0,0,12">
+                        <TextBlock Text="搜索历史" FontSize="14" VerticalAlignment="Center"
+                                   Foreground="{StaticResource TextPrimaryBrush}" />
+                        <Button x:Name="ClearHistoryButton" Content="清空" Click="OnClearHistoryClick" />
+                    </StackPanel>
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                        <StackPanel x:Name="HistoryStack" Spacing="2" />
+                    </ScrollViewer>
+                </Grid>
+
+                <!-- 空态（§7.6 三态：无结果 / 部分失败 / 全失败） -->
+                <StackPanel x:Name="EmptyPanel" Visibility="Collapsed" Spacing="10"
+                            HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <TextBlock x:Name="EmptyTitle" FontSize="16"
+                               Foreground="{StaticResource TextPrimaryBrush}"
+                               HorizontalAlignment="Center" />
+                    <TextBlock x:Name="EmptyDetail" FontSize="13" TextWrapping="Wrap" MaxWidth="560"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               HorizontalAlignment="Center" TextAlignment="Center" />
+                    <Button x:Name="EmptyFallbackButton" Content="仅在当前服务器搜索" Click="OnEmptyFallbackClick"
+                            HorizontalAlignment="Center" Visibility="Collapsed" />
+                </StackPanel>
+
+                <!-- 加载态（§7.6：骨架/进度；本屏用进度环 + 文案 —— WhenAll 拿不到逐源增量，见 §7.6 第 1 行） -->
+                <StackPanel x:Name="LoadingPanel" Visibility="Collapsed" Spacing="12"
+                            HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <ProgressRing IsActive="True" Width="36" Height="36" />
+                    <TextBlock x:Name="LoadingText" FontSize="13"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               HorizontalAlignment="Center" />
+                </StackPanel>
+            </Grid>
+        </Grid>
+    </Grid>
+</Page>

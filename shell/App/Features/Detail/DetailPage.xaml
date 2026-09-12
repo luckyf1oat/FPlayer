@@ -1,0 +1,365 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  详情页（`Features/Detail`）—— 按用户当面给的参照图（`refs/original-ui/req-detail-0*.png`）复现：
+    · Hero 大背景 + 剧名标题
+    · 主操作行：宽紫色「▶ 播放」+ 三个圆形图标按钮（复制链接 / 收藏 / 标记已看）
+    · [!] 右下角三个下拉：**版本（换源）/ 音轨 / 字幕** —— 三者都经 `EmbyPlaybackSession` 的
+      `VersionIndex` / `AudioStreamIndex` / `SubtitleStreamIndex` 影响起播（见 `DetailPage.xaml.cs` 的日志锚）
+    · 元信息行（★评分 · 年份 · 时长）+ 简介
+    · 更多来自第 N 季（集海报横排）/ 媒体信息（文件·视频·音频·字幕分卡）/ 外部链接（IMDb·TMDB·TVDB）
+
+  取数面全部走既有服务层（`GetItemAsync` / `GetSeasonsAsync` / `GetEpisodesAsync` / `GetSimilarAsync` /
+  `ImageUrl`），播放走唯一合法链路（`BuildRequestAsync` → `KernelArgumentBuilder` → `KernelLauncher`）。
+  图标一律 `ic:SymbolIcon`（§1.1：禁用 emoji 与文本符号当图标）。
+-->
+<Page
+    x:Class="AIPlayer.Shell.Features.Detail.DetailPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:ic="using:FluentIcons.WinUI"
+    Background="{StaticResource PageBgBrush}">
+
+    <ScrollViewer x:Name="PageScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel>
+
+            <!-- ===== Hero：大背景 + 渐变压暗（让上方标题与下方文字都可读） =====
+                 高度 300 → 490 → **533**（t177）：**按参照帧的实测比例对齐**，不再用窗高占比估。
+                 参照帧 = `refs/original-ui/hl-08-detail-top.png`（1403x794 / sha256_12 530461FDA47D）——
+                 参照侧有**两法读数**（差异只在「带的上边界定在哪一行」；两法相差 2.1..2.9%，两条都列，不取平均）：
+                   ① `reviewer` 逐行亮度剖面：band **1153x540 ⇒ 比例 2.135 ⇒ 参照自身 cover 裁 ≈16.7%**（上边界取 ~12）；
+                   ② `ui` t182 零偏置标定（用我们两代已知真值 533/490 反证过脚本：2/2 逐位命中、零偏置）：
+                      band **1147x553 ⇒ 比例 2.074 ⇒ 裁 ≈14.3%**（上边界取 0：画面自第 0 行起连续）。
+                 **内容宽 = 1168**（帧上实测 x 264..1431，t170/t177 两代同值）；早先写的 `1136` 是**估值**
+                 （1440 − 256 − 2×24）⇒ **该估值作废，一律按实测 1168**。
+                 ⇒ 框 1168x533 = **2.191** ⇒ 对 1600x900 素材上下 cover 裁 **≈18.8%**
+                   （490 那代 1168/490 = 2.384 ⇒ 25.4%；300 那代 1168/300 = 3.893 ⇒ ≈54%）。
+                 ⇒ **参照匹配高度 H* = 1168 ÷ R 落在 ≈545..565**（R 取 2.144 / 2.067 两端；若取 ①的 2.135 则 547）。
+                   **533 落在该带下侧 2%..6%**；本值是 captain 的裁定（保持 533），本注释只如实记录不确定带：
+                   若要更贴参照，方向是**上调到 ~550**，**不是**回退 490（490 距该带 11%..15%）。
+                 窄窗行为（**写死 533 的必然代价，如实标注**）：内容宽变小 ⇒ 比例下降 ⇒ 上下裁切变多；
+                 例：内容宽 900 ⇒ 900/533 = 1.689 < 1.778 ⇒ **不再上下裁，而是左右留边**
+                 （固定高度的必然行为，**未做响应式**；窄窗只是"略多裁"到"翻向留边"这一段，不是崩版）。
+                 **不采用 `Height = 宽/1.778`（1168 ⇒ 657，占 87% 窗高）与 `Stretch=Uniform` 留黑边**：
+                 参照件自身即 cover（裁 14%~17%），追 0% 与参照矛盾（见 evidence/t177-hero-band-214.txt §3/§6）。
+                 逐行读数由 `DETAIL hero ok … returnedPx=` 给出（`DetailPage.xaml.cs` 的 `SetHeroImageAsync`）。
+                 数字更正的来龙去脉与证据 = evidence/t177-hero-band-214.txt 追加节「§6 数字更正」（t198）。 -->
+            <Grid Height="533">
+                <Image x:Name="HeroImage" Stretch="UniformToFill" />
+                <Button x:Name="BackButton" Click="OnBackClick" Width="36" Height="36" Padding="0"
+                        Margin="12,12,0,0" HorizontalAlignment="Left" VerticalAlignment="Top"
+                        CornerRadius="18" Background="#66000000" BorderThickness="0"
+                        ToolTipService.ToolTip="返回上一页">
+                    <ic:SymbolIcon Symbol="ArrowLeft" IconVariant="Regular" FontSize="16"
+                                   Foreground="{StaticResource TextPrimaryBrush}" />
+                </Button>
+                <Rectangle>
+                    <Rectangle.Fill>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                            <GradientStop Color="#00000000" Offset="0.35" />
+                            <GradientStop Color="#CC101010" Offset="1.0" />
+                        </LinearGradientBrush>
+                    </Rectangle.Fill>
+                </Rectangle>
+            </Grid>
+
+            <!-- ===== 主操作行 + 三个下拉（参照图里两者同一条水平带） ===== -->
+            <Grid Margin="24,-56,24,0" ColumnSpacing="16">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <!-- 左：播放 + 三个圆形图标 -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="12" VerticalAlignment="Bottom">
+                    <Button x:Name="PlayButton" Click="OnPlayClick" Width="200" Height="44"
+                            Background="{StaticResource AccentBrush}" BorderThickness="0" CornerRadius="4">
+                        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+                            <ic:SymbolIcon Symbol="Play" IconVariant="Filled" FontSize="14"
+                                           Foreground="{StaticResource TextPrimaryBrush}" />
+                            <TextBlock x:Name="PlayButtonText" Text="播放" Foreground="{StaticResource TextPrimaryBrush}" />
+                        </StackPanel>
+                    </Button>
+
+                    <Button x:Name="CopyLinkButton" Click="OnCopyLinkClick" Width="44" Height="44" Padding="0"
+                            CornerRadius="22" Background="Transparent" BorderThickness="1"
+                            BorderBrush="{StaticResource ControlBorderBrush}"
+                            ToolTipService.ToolTip="复制条目链接">
+                        <ic:SymbolIcon Symbol="Link" IconVariant="Regular" FontSize="16"
+                                       Foreground="{StaticResource TextPrimaryBrush}" />
+                    </Button>
+                    <Button x:Name="FavoriteButton" Click="OnFavoriteClick" Width="44" Height="44" Padding="0"
+                            CornerRadius="22" Background="Transparent" BorderThickness="1"
+                            BorderBrush="{StaticResource ControlBorderBrush}"
+                            ToolTipService.ToolTip="加入收藏（写入 Emby 用户数据）">
+                        <ic:SymbolIcon Symbol="Heart" IconVariant="Regular" FontSize="16"
+                                       Foreground="{StaticResource TextPrimaryBrush}" />
+                    </Button>
+                    <Button x:Name="WatchedButton" Click="OnWatchedClick" Width="44" Height="44" Padding="0"
+                            CornerRadius="22" Background="Transparent" BorderThickness="1"
+                            BorderBrush="{StaticResource ControlBorderBrush}"
+                            ToolTipService.ToolTip="标记为已看（写入 Emby 用户数据）">
+                        <ic:SymbolIcon Symbol="Checkmark" IconVariant="Regular" FontSize="16"
+                                       Foreground="{StaticResource TextPrimaryBrush}" />
+                    </Button>
+                </StackPanel>
+
+                <!-- 右：版本 / 音轨 / 字幕（每行 = 右侧标签 + 下拉） -->
+                <StackPanel Grid.Column="1" Spacing="6" VerticalAlignment="Bottom" Width="360">
+                    <Grid ColumnSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="版本" VerticalAlignment="Center" FontSize="12"
+                                   Foreground="{StaticResource TextSecondaryBrush}" />
+                        <ComboBox x:Name="VersionBox" Grid.Column="1" HorizontalAlignment="Stretch"
+                                  SelectionChanged="OnVersionChanged" />
+                    </Grid>
+                    <Grid ColumnSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="音轨" VerticalAlignment="Center" FontSize="12"
+                                   Foreground="{StaticResource TextSecondaryBrush}" />
+                        <ComboBox x:Name="AudioBox" Grid.Column="1" HorizontalAlignment="Stretch"
+                                  SelectionChanged="OnAudioChanged" />
+                    </Grid>
+                    <Grid ColumnSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="字幕" VerticalAlignment="Center" FontSize="12"
+                                   Foreground="{StaticResource TextSecondaryBrush}" />
+                        <ComboBox x:Name="SubtitleBox" Grid.Column="1" HorizontalAlignment="Stretch"
+                                  SelectionChanged="OnSubtitleChanged" />
+                    </Grid>
+                </StackPanel>
+            </Grid>
+
+            <!-- ===== 标题 / 季集 / 元信息 / 简介 ===== -->
+            <StackPanel Margin="24,16,24,0" Spacing="4">
+                <TextBlock x:Name="TitleText" FontSize="26" FontWeight="SemiBold"
+                           Foreground="{StaticResource TextPrimaryBrush}" TextTrimming="CharacterEllipsis" />
+                <TextBlock x:Name="EpisodeLineText" FontSize="13"
+                           Foreground="{StaticResource TextSecondaryBrush}" />
+                <TextBlock x:Name="MetaText" FontSize="12"
+                           Foreground="{StaticResource TextSecondaryBrush}" />
+                <TextBlock x:Name="OverviewText" FontSize="13" TextWrapping="Wrap" MaxLines="2"
+                           TextTrimming="CharacterEllipsis"
+                           Foreground="{StaticResource TextSecondaryBrush}" />
+                <TextBlock x:Name="StatusText" FontSize="12" TextWrapping="Wrap" Opacity="0.8"
+                           Foreground="{StaticResource TextSecondaryBrush}" />
+
+                <!-- ===== t105 可见三态：加载中（转圈 + 文案）/ 失败（重试按钮） ===== -->
+                <!-- 用户 2026-09-12 报障「详情页加载不出东西」= 静默挂起：之前这一屏既无进度也无失败。
+                     现在加载中一定看得见转圈，失败一定看得见「重试」并把原因写在 StatusText 上。 -->
+                <StackPanel x:Name="LoadingPanel" Orientation="Horizontal" Spacing="8"
+                            Visibility="Collapsed" Margin="0,4,0,0">
+                    <ProgressRing IsActive="True" Width="16" Height="16" />
+                    <TextBlock Text="正在加载…" FontSize="12" VerticalAlignment="Center"
+                               Foreground="{StaticResource TextSecondaryBrush}" />
+                </StackPanel>
+                <Button x:Name="RetryButton" Content="重试" Click="OnRetryClick"
+                        Visibility="Collapsed" Margin="0,4,0,0" />
+            </StackPanel>
+
+            <!-- ===== 季（多季时才显示） ===== -->
+            <StackPanel x:Name="SeasonSection" Margin="24,20,24,0" Spacing="8" Visibility="Collapsed">
+                <TextBlock Text="季" FontSize="16" FontWeight="SemiBold"
+                           Foreground="{StaticResource TextPrimaryBrush}" />
+                <ListView x:Name="SeasonList" SelectionMode="Single" Background="Transparent"
+                          BorderThickness="0" SelectionChanged="OnSeasonSelected"
+                          ScrollViewer.HorizontalScrollMode="Enabled"
+                          ScrollViewer.HorizontalScrollBarVisibility="Hidden"
+                          ScrollViewer.VerticalScrollMode="Enabled">
+                    <ListView.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                    </ListView.ItemsPanel>
+                    <ListView.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Width="140" Spacing="6" Margin="0,0,12,0">
+                                <Grid Width="140" Height="210">
+                                    <Border CornerRadius="12" Background="#FF2A2A2A" />
+                                    <Image Source="{Binding Image}" Stretch="UniformToFill" />
+                                    <!-- t203 ③：取图失败要看得见（有 URL 却取不回来时才显示；与「还没填」的占位底可区分） -->
+                                    <Border CornerRadius="12" Background="#CCB3261E" BorderBrush="#FFFF6B6B" BorderThickness="1"
+                                            Visibility="{Binding FailedVisibility}">
+                                        <TextBlock Text="取图失败" FontSize="11" TextAlignment="Center"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                   Foreground="{StaticResource TextPrimaryBrush}" />
+                                    </Border>
+                                </Grid>
+                                <TextBlock Text="{Binding Caption}" FontSize="12" TextTrimming="CharacterEllipsis"
+                                           Foreground="{StaticResource TextPrimaryBrush}" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListView.ItemTemplate>
+                </ListView>
+            </StackPanel>
+
+            <!-- ===== 更多来自第 N 季（集海报横排） ===== -->
+            <StackPanel x:Name="EpisodeSection" Margin="24,20,24,0" Spacing="8" Visibility="Collapsed">
+                <TextBlock x:Name="EpisodeSectionTitle" FontSize="16" FontWeight="SemiBold"
+                           Foreground="{StaticResource TextPrimaryBrush}" />
+                <ListView x:Name="EpisodeList" SelectionMode="Single" Background="Transparent"
+                          BorderThickness="0" SelectionChanged="OnEpisodeSelected"
+                          ScrollViewer.HorizontalScrollMode="Enabled"
+                          ScrollViewer.HorizontalScrollBarVisibility="Hidden"
+                          ScrollViewer.VerticalScrollMode="Enabled">
+                    <ListView.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                    </ListView.ItemsPanel>
+                    <ListView.ItemTemplate>
+                        <DataTemplate>
+                            <!-- 剧集行 = **横版 16:9**（用户给的参照图二：继续观看/剧集都是横版卡）。
+                                 Emby 里 Episode 的 `Primary` 就是 16:9 截帧 ⇒ 请求 `maxWidth/maxHeight` 按 16:9 出图，
+                                 卡位也固定 16:9 + UniformToFill；改前是 166x249(2:3) 竖卡 ⇒ 横图被裁成"粉色一团/半张脸"。 -->
+                            <StackPanel Width="300" Spacing="6" Margin="0,0,12,0">
+                                <Grid Width="300" Height="169">
+                                    <Border CornerRadius="12" Background="#FF2A2A2A" />
+                                    <Image Source="{Binding Image}" Stretch="UniformToFill" />
+                                    <!-- t203 ③：取图失败要看得见（有 URL 却取不回来时才显示） -->
+                                    <Border CornerRadius="12" Background="#CCB3261E" BorderBrush="#FFFF6B6B" BorderThickness="1"
+                                            Visibility="{Binding FailedVisibility}">
+                                        <TextBlock Text="取图失败" FontSize="11" TextAlignment="Center"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                   Foreground="{StaticResource TextPrimaryBrush}" />
+                                    </Border>
+                                </Grid>
+                                <TextBlock Text="{Binding Caption}" FontSize="12" MaxLines="2"
+                                           TextTrimming="CharacterEllipsis"
+                                           Foreground="{StaticResource TextPrimaryBrush}" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListView.ItemTemplate>
+                </ListView>
+            </StackPanel>
+
+            <!-- ===== 更多类似 ===== -->
+            <StackPanel x:Name="SimilarSection" Margin="24,20,24,0" Spacing="8" Visibility="Collapsed">
+                <TextBlock Text="更多类似" FontSize="16" FontWeight="SemiBold"
+                           Foreground="{StaticResource TextPrimaryBrush}" />
+                <ListView x:Name="SimilarList" SelectionMode="Single" Background="Transparent"
+                          BorderThickness="0" SelectionChanged="OnSimilarSelected"
+                          ScrollViewer.HorizontalScrollMode="Enabled"
+                          ScrollViewer.HorizontalScrollBarVisibility="Hidden"
+                          ScrollViewer.VerticalScrollMode="Enabled">
+                    <ListView.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                    </ListView.ItemsPanel>
+                    <ListView.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Width="140" Spacing="6" Margin="0,0,12,0">
+                                <Grid Width="140" Height="210">
+                                    <Border CornerRadius="12" Background="#FF2A2A2A" />
+                                    <Image Source="{Binding Image}" Stretch="UniformToFill" />
+                                    <!-- t203 ③：取图失败要看得见（有 URL 却取不回来时才显示） -->
+                                    <Border CornerRadius="12" Background="#CCB3261E" BorderBrush="#FFFF6B6B" BorderThickness="1"
+                                            Visibility="{Binding FailedVisibility}">
+                                        <TextBlock Text="取图失败" FontSize="11" TextAlignment="Center"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                   Foreground="{StaticResource TextPrimaryBrush}" />
+                                    </Border>
+                                </Grid>
+                                <TextBlock Text="{Binding Caption}" FontSize="12" MaxLines="2"
+                                           TextTrimming="CharacterEllipsis"
+                                           Foreground="{StaticResource TextPrimaryBrush}" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListView.ItemTemplate>
+                </ListView>
+            </StackPanel>
+
+            <!-- ===== 演职人员（§6：卡宽 144、间距 16；没有照片用 #333333 占位） ===== -->
+            <StackPanel x:Name="CastSection" Margin="24,20,24,0" Spacing="8" Visibility="Collapsed">
+                <TextBlock Text="演职人员" FontSize="16" FontWeight="SemiBold"
+                           Foreground="{StaticResource TextPrimaryBrush}" />
+                <ListView x:Name="CastList" SelectionMode="Single" Background="Transparent"
+                          BorderThickness="0" SelectionChanged="OnCastSelected"
+                          ScrollViewer.HorizontalScrollMode="Enabled"
+                          ScrollViewer.HorizontalScrollBarVisibility="Hidden"
+                          ScrollViewer.VerticalScrollMode="Enabled">
+                    <ListView.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                    </ListView.ItemsPanel>
+                    <ListView.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Width="144" Spacing="6" Margin="0,0,16,0">
+                                <Grid Width="144" Height="144">
+                                    <Border CornerRadius="12" Background="#FF333333" />
+                                    <Image Source="{Binding Image}" Stretch="UniformToFill" />
+                                    <!-- t203 ③：取图失败要看得见（有 URL 却取不回来时才显示） -->
+                                    <Border CornerRadius="12" Background="#CCB3261E" BorderBrush="#FFFF6B6B" BorderThickness="1"
+                                            Visibility="{Binding FailedVisibility}">
+                                        <TextBlock Text="取图失败" FontSize="11" TextAlignment="Center"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                   Foreground="{StaticResource TextPrimaryBrush}" />
+                                    </Border>
+                                </Grid>
+                                <TextBlock Text="{Binding Name}" FontSize="12" TextTrimming="CharacterEllipsis"
+                                           Foreground="{StaticResource TextPrimaryBrush}" />
+                                <TextBlock Text="{Binding Role}" FontSize="11" TextTrimming="CharacterEllipsis"
+                                           Foreground="{StaticResource TextSecondaryBrush}" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListView.ItemTemplate>
+                </ListView>
+            </StackPanel>
+
+            <!-- ===== 媒体信息（文件 / 视频 / 音频 / 字幕×N 分卡） ===== -->
+            <StackPanel x:Name="MediaInfoSection" Margin="24,20,24,0" Spacing="8" Visibility="Collapsed">
+                <TextBlock Text="媒体信息" FontSize="16" FontWeight="SemiBold"
+                           Foreground="{StaticResource TextPrimaryBrush}" />
+                <ItemsControl x:Name="MediaInfoCards">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Width="256" Margin="0,0,12,0" Padding="12" CornerRadius="8"
+                                    Background="#FF232323" BorderThickness="1"
+                                    BorderBrush="{StaticResource CardStrokeColorDefaultBrush}">
+                                <StackPanel Spacing="4">
+                                    <TextBlock Text="{Binding Title}" FontSize="13" FontWeight="SemiBold"
+                                               Foreground="{StaticResource TextPrimaryBrush}" />
+                                    <ItemsControl ItemsSource="{Binding Rows}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding}" FontSize="12" TextWrapping="Wrap"
+                                                           Foreground="{StaticResource TextSecondaryBrush}" />
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+
+            <!-- ===== 外部链接 ===== -->
+            <StackPanel x:Name="LinksSection" Margin="24,20,24,32" Spacing="8" Visibility="Collapsed">
+                <TextBlock Text="外部链接" FontSize="16" FontWeight="SemiBold"
+                           Foreground="{StaticResource TextPrimaryBrush}" />
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button x:Name="ImdbButton" Click="OnImdbClick" Content="IMDb" />
+                    <Button x:Name="TmdbButton" Click="OnTmdbClick" Content="MovieDb" />
+                    <Button x:Name="TvdbButton" Click="OnTvdbClick" Content="TheTVDB" />
+                </StackPanel>
+            </StackPanel>
+
+        </StackPanel>
+    </ScrollViewer>
+</Page>
